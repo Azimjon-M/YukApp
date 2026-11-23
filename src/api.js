@@ -1,0 +1,141 @@
+// Server bilan aloqa: https://yuk.gtpro.uz/pub — Mini App va sayt ishlatadigan API (YukPlatform apps/api/src/public.js).
+// Mini App'dagi apps/web/src/api.js bilan bir xil qoidalar, faqat token brauzer xotirasida emas — telefonning
+// xavfsiz xotirasida (storage.js). Bu faylda react-native import qilinmaydi: testlar (test/api.test.js) oddiy Node'da ishlaydi.
+//
+// Qoidalar (apps/mobile/API.md):
+//   • har so'rovda "Authorization: Bearer <token>";
+//   • 401 code "auth" — token eskirgan → onAuthLost (ilova kirish ekraniga qaytadi);
+//   • 403 code "blocked" — boshqaruv markazidan bloklangan → onBlocked («Uzr...» ekrani);
+//   • bitta IP dan daqiqasiga 240 tadan ko'p so'rov yubormaslik (ro'yxat har daqiqada bir marta yangilanadi);
+//   • token va kirish kodini logga yozmaslik (xato matnlarida manzil ham yo'q — kod manzilda bo'ladi).
+
+// Sinash uchun boshqa server: EXPO_PUBLIC_API_URL=http://localhost:3011 npx expo start (Expo bu qiymatni yig'ishda
+// kodga qo'yadi). Bo'lmasa — haqiqiy server
+export const PROD_API_URL = "https://yuk.gtpro.uz";
+export const API_URL = (process.env.EXPO_PUBLIC_API_URL || PROD_API_URL).replace(/\/+$/, "");
+
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = null, field = null } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status; // HTTP holati; 0 — javob umuman kelmadi (internet yo'q)
+    this.code = code; // "auth" | "blocked" | "offline" | "no_role" | "no_profile" | "feed" | "role" | "expired" | "limit" ...
+    this.field = field; // forma xatosi: qaysi maydon
+  }
+}
+
+// Ilova sozlaydi (session.js): token qayerdan olinadi va 401 / 403 bo'lsa kimga aytiladi.
+// fetch va sleep — testlarda soxtasi beriladi
+const settings = {
+  baseUrl: API_URL,
+  getToken: () => null,
+  onAuthLost: () => {},
+  onBlocked: () => {},
+  fetch: (...args) => globalThis.fetch(...args),
+  sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+};
+export function configureApi(options) {
+  Object.assign(settings, options);
+}
+
+// Server qayta ishga tushayotgan bo'lsa (502/503 — nginx bor, API yo'q; 530 — Cloudflare ulana olmadi) so'rov
+// serverga yetib bormagan — qayta yuborish xavfsiz. Internet uzilsa esa so'rov yetib borgan bo'lishi mumkin —
+// faqat takrorlansa zarari yo'q (GET/PUT/DELETE) so'rovlar qayta yuboriladi. Jami ~20 s
+export const RETRY_DELAYS_MS = [1500, 3000, 5000, 10000];
+const NOT_REACHED = new Set([502, 503, 530]);
+const IDEMPOTENT = new Set(["GET", "PUT", "DELETE"]);
+// Bir so'rovni ko'pi bilan shuncha kutamiz (server qotib qolsa ilova ham qotmasin)
+const TIMEOUT_MS = 20_000;
+
+// method, path ("/pub/me"), { body, token, retry }. token: undefined — saqlangani, null — tokensiz.
+// retry: false — qayta urinmaslik (kirishni so'rab turish o'zi har 2 s da so'raydi)
+export async function request(method, path, options = {}) {
+  const delays = options.retry === false ? [] : RETRY_DELAYS_MS;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await requestOnce(method, path, options);
+    } catch (error) {
+      const again =
+        attempt < delays.length &&
+        error.code === "offline" &&
+        (NOT_REACHED.has(error.status) || (!error.status && IDEMPOTENT.has(method)));
+      if (!again) throw error;
+      await settings.sleep(delays[attempt]);
+    }
+  }
+}
+
+async function requestOnce(method, path, { body, token = settings.getToken() } = {}) {
+  const headers = { accept: "application/json" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (body !== undefined) headers["content-type"] = "application/json";
+
+  // AbortController — javob 20 s da kelmasa so'rovni to'xtatadi
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), TIMEOUT_MS) : null;
+  let response;
+  try {
+    response = await settings.fetch(`${settings.baseUrl}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: controller?.signal,
+    });
+  } catch {
+    throw new ApiError("Server bilan aloqa yo'q. Internetni tekshiring va qayta urinib ko'ring.", { code: "offline" });
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  let json = null;
+  try {
+    json = await response.json();
+  } catch {
+    json = null;
+  }
+  // 200 va 202 (kirish hali tasdiqlanmagan) — ikkalasi ham "ok"
+  if (response.ok && json) return json;
+
+  if (json?.code === "blocked") settings.onBlocked(json.error);
+  // Token bilan yuborilgan so'rovga 401 — token eskirgan yoki hisob o'chirilgan. Tokensiz so'rovning 401 i (masalan,
+  // kirish) — oddiy xato
+  if (response.status === 401 && token) settings.onAuthLost();
+  if (json?.error) throw new ApiError(json.error, { status: response.status, code: json.code ?? null, field: json.field ?? null });
+  // JSON emas — server ishlamayapti (nginx xato sahifasi, Cloudflare)
+  throw new ApiError("Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status: response.status, code: "offline" });
+}
+
+// Kichik yordamchi: { a: 1, b: null } → "a=1" (bo'sh qiymatlar tashlanadi)
+const query = (params) =>
+  Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
+
+// --- Yo'llar (public.js boshidagi ro'yxat) ---
+
+// Kirishsiz: bot nomi va yo'nalish doirasi (scope)
+export const getConfig = () => request("GET", "/pub/config", { token: null });
+
+// Ilova uchun kirish: { code, url, tgUrl, expiresIn, pollMs }
+export const startAppLogin = () => request("POST", "/pub/auth/app", { token: null, retry: false });
+// Bot tasdiqladimi: { status: "pending" } (202) | { token, me } (200, bir marta) | ApiError 410 "expired"
+export const checkAppLogin = (code) => request("GET", `/pub/auth/app/${encodeURIComponent(code)}`, { token: null, retry: false });
+
+export const getMe = () => request("GET", "/pub/me");
+export const setRole = (role) => request("PUT", "/pub/me/role", { body: { role } });
+export const setActive = (active) => request("PATCH", "/pub/me", { body: { active } });
+// Hisobdan chiqish serverda: rol va sozlamalar yashiriladi, bot yubormaydi (qayta kirib rol tanlasa — tiklanadi)
+export const signOut = () => request("POST", "/pub/me/logout");
+// Hisobni o'chirish (botdagi /ochirish → «Hammasini o'chirish» bilan bir xil)
+export const deleteMe = () => request("DELETE", "/pub/me");
+
+// view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
+export const getLoads = (params = {}) => request("GET", `/pub/loads?${query(params)}`);
+// Bo'sh mashinalar (yuk beruvchiga) — xuddi shunday
+export const getTrucks = (params = {}) => request("GET", `/pub/trucks?${query(params)}`);
+
+// Haydovchining yo'nalishi: { from?, hours } → { from, hours, areas: [{ id, label, count }], any }
+export const getRoute = (params = {}) => request("GET", `/pub/me/route?${query(params)}`);
+// "*" = istalgan joy → yangilangan me
+export const saveRoute = (from, to) => request("PUT", "/pub/me/route", { body: { from, to } });

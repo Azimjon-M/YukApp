@@ -1,15 +1,17 @@
 {
   "expo": {
-    "name": "YukApp",
-    "slug": "YukApp",
-    "version": "1.0.0",
+    "name": "Yuk Ekspert",
+    "slug": "yuk-ekspert",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "yukekspert",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "uz.gtpro.yukekspert",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,6 +21,19 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "backgroundColor": "#efeff4"
+        }
+      ]
+    ]
   }
 }
