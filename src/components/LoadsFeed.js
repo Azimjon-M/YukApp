@@ -211,18 +211,32 @@ const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   list: { padding: space.md, paddingBottom: space.xl },
   pad: { padding: space.md, gap: space.md },
-  top: { gap: space.sm, paddingHorizontal: space.md, paddingTop: space.md, backgroundColor: colors.bg },
+  // Qotib turadigan tepa qism: pastida soya — aylantirilgan e'lonlar ostidan o'tayotgani ko'rinadi, qorishib ketmaydi
+  top: {
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    backgroundColor: colors.bg,
+    zIndex: 2,
+    elevation: 6, // Android soyasi
+    shadowColor: "#000", // iOS / web soyasi
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
   paused: { backgroundColor: "#fff4e5", borderRadius: radius, padding: space.md, borderWidth: 1, borderColor: "#f5c27a" },
   pausedText: { fontSize: 14, lineHeight: 19, color: "#8a5300", fontWeight: "600" },
   bar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.card,
+    backgroundColor: "#d6e6f5", // kartalardan (oq) to'qroq ko'k — filtr qatori e'lon bilan adashmaydi
+    borderWidth: 1,
+    borderColor: "#a9c9e8",
     borderRadius: radius,
     paddingLeft: space.lg,
   },
-  barText: { flex: 1, fontSize: 14, color: colors.text },
+  barText: { flex: 1, fontSize: 14, color: "#0d3c66", fontWeight: "600" },
   bold: { fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
 });
