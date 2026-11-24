@@ -5,7 +5,9 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
 `../YukPlatform/CLAUDE.md` (talk to Azimjon in **Uzbek (Latin)**; code comments in Uzbek; explain new things as you go).
 
 - Started 2026-11-23 at his request («YukPlatform darajasida papka yaratib ichiga ilova quramiz»): sibling folder, its own
-  git repo (no remote yet). Backend is NOT changed from here — only `https://yuk.gtpro.uz/pub` is used
+  git repo: **private** GitHub `Azimjon-M/YukApp`, branch `main` (created and first pushed 2026-11-24 at his «yangi repo
+  ochib push qil»; local `master` renamed to `main` before that). Push after work like YukPlatform; never commit `keys/`,
+  `apk/`, real phones or tokens. Backend is NOT changed from here — only `https://yuk.gtpro.uz/pub` is used
   (`../YukPlatform/apps/mobile/API.md`, `apps/api/src/public.js` header). A missing endpoint → tell him which and why,
   the server side adds it.
 - `@yuk/shared` = `file:../YukPlatform/packages/shared` (symlink) + `metro.config.js` `watchFolders`. Needs the sibling
