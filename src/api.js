@@ -15,12 +15,13 @@ export const PROD_API_URL = "https://yuk.gtpro.uz";
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL || PROD_API_URL).replace(/\/+$/, "");
 
 export class ApiError extends Error {
-  constructor(message, { status = 0, code = null, field = null } = {}) {
+  constructor(message, { status = 0, code = null, field = null, data = null } = {}) {
     super(message);
     this.name = "ApiError";
     this.status = status; // HTTP holati; 0 — javob umuman kelmadi (internet yo'q)
-    this.code = code; // "auth" | "blocked" | "offline" | "no_role" | "no_profile" | "feed" | "role" | "expired" | "limit" ...
+    this.code = code; // "auth" | "blocked" | "offline" | "not_found" | "not_member" | "wrong" | "expired" | "limit" ...
     this.field = field; // forma xatosi: qaysi maydon
+    this.data = data; // server javobining qolgani (masalan, not_member → missing, wrong → attemptsLeft, limit → retryIn)
   }
 }
 
@@ -100,7 +101,7 @@ async function requestOnce(method, path, { body, token = settings.getToken() } =
   // Token bilan yuborilgan so'rovga 401 — token eskirgan yoki hisob o'chirilgan. Tokensiz so'rovning 401 i (masalan,
   // kirish) — oddiy xato
   if (response.status === 401 && token) settings.onAuthLost();
-  if (json?.error) throw new ApiError(json.error, { status: response.status, code: json.code ?? null, field: json.field ?? null });
+  if (json?.error) throw new ApiError(json.error, { status: response.status, code: json.code ?? null, field: json.field ?? null, data: json });
   // JSON emas — server ishlamayapti (nginx xato sahifasi, Cloudflare)
   throw new ApiError("Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status: response.status, code: "offline" });
 }
@@ -114,13 +115,16 @@ const query = (params) =>
 
 // --- Yo'llar (public.js boshidagi ro'yxat) ---
 
-// Kirishsiz: bot nomi va yo'nalish doirasi (scope)
+// Kirishsiz: bot nomi, yo'nalish doirasi (scope), a'zo bo'lish kerak bo'lgan kanal/guruhlar (required)
 export const getConfig = () => request("GET", "/pub/config", { token: null });
 
-// Ilova uchun kirish: { code, url, tgUrl, expiresIn, pollMs }
-export const startAppLogin = () => request("POST", "/pub/auth/app", { token: null, retry: false });
-// Bot tasdiqladimi: { status: "pending" } (202) | { token, me } (200, bir marta) | ApiError 410 "expired"
-export const checkAppLogin = (code) => request("GET", `/pub/auth/app/${encodeURIComponent(code)}`, { token: null, retry: false });
+// Kod bilan kirish (2026-11-24). login — "+998901234567" yoki "@username" (codeLogin.js parseLogin tekshirgan).
+// → { requestId, expiresIn, resendIn, digits } — bot shu odamning Telegram'iga kod yubordi.
+// Xatolar: 404 not_found (bizda yo'q) | 403 not_member { missing } | 409 bot_blocked | 429 limit { retryIn } | 403 blocked
+export const requestLoginCode = (login) => request("POST", "/pub/auth/code", { body: { login }, token: null, retry: false });
+// → { token, me } | 400 wrong { attemptsLeft } | 410 expired (eskirgan, ishlatilgan yoki urinishlar tugagan) | 429 limit
+export const verifyLoginCode = (requestId, code) =>
+  request("POST", "/pub/auth/code/verify", { body: { requestId, code }, token: null, retry: false });
 
 export const getMe = () => request("GET", "/pub/me");
 export const setRole = (role) => request("PUT", "/pub/me/role", { body: { role } });

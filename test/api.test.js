@@ -1,7 +1,7 @@
 // src/api.js — soxta fetch bilan: sarlavhalar, 401 / 403, qayta urinish. Tarmoqqa chiqmaydi.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ApiError, checkAppLogin, configureApi, getLoads, getMe, request, startAppLogin } from "../src/api.js";
+import { ApiError, configureApi, getLoads, getMe, request, requestLoginCode, verifyLoginCode } from "../src/api.js";
 
 const reply = (status, json) => ({ ok: status >= 200 && status < 300, status, json: async () => json });
 
@@ -32,18 +32,23 @@ test("token Bearer sarlavhada, JSON javob qaytadi", async () => {
   assert.equal(calls[0].headers.authorization, "Bearer TOK");
 });
 
-test("kirish so'rovlari tokensiz, qayta urinmaydi; 202 — kutish javobi", async () => {
-  const { calls } = setup([reply(200, { code: "c" }), reply(202, { status: "pending" })]);
-  await startAppLogin();
+test("kod bilan kirish so'rovlari tokensiz, POST, tanasi JSON", async () => {
+  const { calls } = setup([reply(200, { requestId: "r" }), reply(200, { token: "T" })]);
+  await requestLoginCode("@ali_99");
+  assert.equal(calls[0].url, "https://example.test/pub/auth/code");
   assert.equal(calls[0].method, "POST");
   assert.equal(calls[0].headers.authorization, undefined);
-  assert.deepEqual(await checkAppLogin("a/b"), { status: "pending" });
-  assert.equal(calls[1].url, "https://example.test/pub/auth/app/a%2Fb");
+  assert.deepEqual(JSON.parse(calls[0].body), { login: "@ali_99" });
+  await verifyLoginCode("r", "123456");
+  assert.equal(calls[1].url, "https://example.test/pub/auth/code/verify");
+  assert.deepEqual(JSON.parse(calls[1].body), { requestId: "r", code: "123456" });
 });
 
-test("410 — ApiError status 410", async () => {
-  setup([reply(410, { error: "Kirish kodi eskirgan", code: "expired" })]);
-  await assert.rejects(checkAppLogin("x"), (e) => e instanceof ApiError && e.status === 410 && e.code === "expired");
+test("xato javobning qo'shimcha maydonlari ApiError.data da; kirish so'rovi qayta yuborilmaydi", async () => {
+  const { calls } = setup([reply(400, { error: "Kod noto'g'ri", code: "wrong", attemptsLeft: 2 }), reply(502, null)]);
+  await assert.rejects(verifyLoginCode("r", "1"), (e) => e instanceof ApiError && e.code === "wrong" && e.data.attemptsLeft === 2);
+  await assert.rejects(requestLoginCode("@a"), (e) => e.code === "offline");
+  assert.equal(calls.length, 2);
 });
 
 test("401 token bilan — onAuthLost; tokensiz — yo'q", async () => {

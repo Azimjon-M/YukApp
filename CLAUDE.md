@@ -12,8 +12,15 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   the server side adds it.
 - `@yuk/shared` = `file:../YukPlatform/packages/shared` (symlink) + `metro.config.js` `watchFolders`. Needs the sibling
   checkout; an Expo cloud build would not see it (local build or vendoring needed then).
-- Login: `src/appLogin.js` state machine (POST /pub/auth/app → open tg:// then https t.me → poll every pollMs, AppState
-  "active" polls at once, 410 → expired, offline → keep polling at 5 s). Code/token never logged or put in state.
+- Login (since 0.2.0, 2026-11-24, his «telefon raqami yoki username ni kiritsin, agar bizda bo'lsagina botdan kod olsin»):
+  `src/codeLogin.js` state machine — `parseLogin` (shared `typedPhone` / `telegramUsername` → "+998…" or "@name") →
+  POST /pub/auth/code { login } → { requestId, expiresIn, resendIn, digits } → POST /pub/auth/code/verify
+  { requestId, code } → { token, me }. 404 not_found / 403 not_member { missing } / 409 bot_blocked → `state.problem` →
+  login screen shows the «Ro'yxatdan o'tish» guide (bot Start → join channel + group from /pub/config `required` → share
+  phone in the bot → come back). 400 wrong { attemptsLeft }, 410 expired, 429 limit { retryIn }. `ApiError.data` = full
+  error JSON. requestId/code never in state or logs. The old «Telegram orqali kirish» (POST /pub/auth/app + polling,
+  `appLogin.js`) was removed from the app; the server endpoints stay for 0.1.0 installs. The server side was specified in
+  a prompt for his server chat (2026-11-24) — the app needs it deployed before 0.2.0 can log in.
   Token in expo-secure-store (`src/storage.js`; localStorage on web). 401 with a token → `leave()`; 403 blocked → «Uzr».
 - Screens: login, holat (loading/blocked/offline), rol, (tabs)/index (loads or trucks by role), (tabs)/sozlamalar,
   yonalish. Stack.Protected guards in `src/app/_layout.js`.

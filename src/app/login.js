@@ -1,104 +1,195 @@
-// «Telegram orqali kirish». Ilovada Telegram imzosi yo'q, shuning uchun kirishni bot tasdiqlaydi:
-// tugma → server kod beradi → Telegram'da bot ochiladi → odam «Start», keyin «✅ Ha, kiraman» ni bosadi →
-// ilova har 2 soniyada «tasdiqlandimi?» deb so'raydi va token oladi. Qadamlar mantig'i — src/appLogin.js.
+// «Kod bilan kirish» (2026-11-24): telefon raqami yoki @username → bot Telegram'ga kod yuboradi → kod ilovaga yoziladi.
+// Qadamlar mantig'i — src/codeLogin.js. Bizda yo'q odamga (yoki kanal/guruhga a'zo bo'lmaganga) shu ekranning o'zida
+// «Ro'yxatdan o'tish» yo'riqnomasi: botga Start → kanal va guruhga a'zo bo'lish → qaytib kirish.
 import { useEffect, useRef, useState } from "react";
-import { AppState, Linking, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { checkAppLogin, startAppLogin } from "../api.js";
-import { createAppLogin } from "../appLogin.js";
+import { requestLoginCode, verifyLoginCode } from "../api.js";
+import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
 import { useSession } from "../session.js";
-import { colors, space } from "../theme.js";
-import { Button, Card, Hint, Spinner } from "../ui.js";
+import { colors, radius, space } from "../theme.js";
+import { Button, Card, Hint } from "../ui.js";
 
-// Avval tg:// — Telegram ilovasi to'g'ridan-to'g'ri ochiladi. Telegram o'rnatilmagan bo'lsa Android xato beradi →
-// https://t.me/... (brauzer, u yerdan «Telegram'da ochish»). Brauzerda sinashda — faqat https havola
-async function openTelegram(ticket) {
-  if (Platform.OS !== "web" && ticket.tgUrl) {
-    try {
-      await Linking.openURL(ticket.tgUrl);
-      return;
-    } catch {
-      // pastda https havola bilan
-    }
+// Server /pub/config da required bermasa (eski server) — shu ro'yxat. Bot REQUIRED_CHATS bilan bir xil
+const DEFAULT_REQUIRED = [
+  { title: "Yuk Ekspert kanali", url: "https://t.me/Yuk_Ekspert" },
+  { title: "Yuk Ekspert guruhi", url: "https://t.me/Yuk_Ekspert_chat" },
+];
+
+// "@kanal" yoki { id, title, url } → { title, url }
+function chatLink(item) {
+  if (typeof item === "string") {
+    const name = item.replace(/^@/, "");
+    return { title: `@${name}`, url: `https://t.me/${name}` };
   }
-  await Linking.openURL(ticket.url);
+  const name = String(item?.id ?? "").replace(/^@/, "");
+  return { title: item?.title || (name ? `@${name}` : "Kanal"), url: item?.url || (name ? `https://t.me/${name}` : null) };
 }
 
+// Soniyani «1:05» ko'rinishida
+const clock = (ms) => {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+const open = (url) => url && Linking.openURL(url).catch(() => {});
+
 export default function LoginScreen() {
-  const { signIn } = useSession();
-  const [state, setState] = useState({ step: "idle", error: null, offline: false });
+  const { signIn, config, botUsername } = useSession();
+  const [state, setState] = useState(null);
+  const [login, setLogin] = useState("");
+  const [code, setCode] = useState("");
+  const [now, setNow] = useState(() => Date.now()); // sanagich: kod kutilayotganda har soniyada yangilanadi
   const flow = useRef(null);
 
-  // Ekran ochilganda bir marta yaratiladi, yopilganda to'xtatiladi (so'rash ham to'xtaydi)
   useEffect(() => {
-    const login = createAppLogin({
-      start: startAppLogin,
-      check: checkAppLogin,
-      open: openTelegram,
+    const machine = createCodeLogin({
+      requestCode: requestLoginCode,
+      verifyCode: verifyLoginCode,
       onChange: setState,
       onDone: (answer) => signIn(answer),
     });
-    flow.current = login;
-    // Odam Telegram'dan qaytdi — kutib o'tirmay darhol so'raymiz
-    const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") login.resume();
-    });
-    return () => {
-      sub.remove();
-      login.dispose();
-    };
+    flow.current = machine;
+    return () => machine.dispose();
   }, [signIn]);
 
-  const { step, error, offline } = state;
+  const step = state?.step ?? "enter";
+  const codeStep = step === "code" || step === "verifying" || step === "done";
+
+  // Kod kutilayotganda «qayta yuborish» va «amal qiladi» sanagichi
+  useEffect(() => {
+    if (!codeStep) return undefined;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [codeStep]);
+
+  // Yangi kod so'ralganda yoki boshiga qaytilganda eski yozilgan kod tozalanadi
+  const resend = () => {
+    setCode("");
+    setNow(Date.now());
+    flow.current?.resend();
+  };
+  const back = () => {
+    setCode("");
+    flow.current?.back();
+  };
+  const submit = () => {
+    setCode("");
+    setNow(Date.now());
+    flow.current?.submit(login);
+  };
+  const expiresAt = state?.expiresAt;
+
+  const required = (Array.isArray(config?.required) && config.required.length ? config.required : DEFAULT_REQUIRED).map(chatLink);
+  const botUrl = `https://t.me/${botUsername}`;
+  const digits = state?.digits ?? DEFAULT_DIGITS;
+  const resendLeft = (state?.resendAt ?? 0) - now;
+  const problem = state?.problem;
 
   return (
     <SafeAreaView style={styles.page}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
           <Text style={styles.logo}>🚛</Text>
           <Text style={styles.title}>Yuk Ekspert</Text>
-          <Text style={styles.lead}>
-            Yuk beruvchidan yukni to'g'ridan-to'g'ri olib, haydovchilarga yetkazamiz. Katta yuk guruhlaridagi e'lonlardan
-            sizga moslarini saralab beramiz.
-          </Text>
+          <Text style={styles.lead}>Katta yuk guruhlaridagi e'lonlardan sizga moslarini saralab beramiz.</Text>
         </View>
 
-        {step === "waiting" || step === "done" ? (
+        {codeStep ? (
           <Card style={styles.box}>
-            <Text style={styles.boxTitle}>Telegram'da tasdiqlang</Text>
+            <Text style={styles.boxTitle}>Kodni yozing</Text>
             <Text style={styles.text}>
-              1. Telegram'da Yuk Ekspert boti ochildi — <Text style={styles.bold}>«Start»</Text> ni bosing.{"\n"}
-              2. Keyin <Text style={styles.bold}>«✅ Ha, kiraman»</Text> tugmasini bosing.{"\n"}
-              3. Shu ilovaga qayting — o'zi kiradi.
+              <Text style={styles.bold}>@{botUsername}</Text> boti Telegram'ingizga ({state?.login}) {digits} xonali kod yubordi.
             </Text>
-            <Spinner label={step === "done" ? "Kirilyapti..." : "Tasdiqlash kutilmoqda..."} />
-            {offline ? <Text style={styles.warn}>📡 Server bilan aloqa uzildi — qayta urinilyapti...</Text> : null}
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Button title="Telegram'ni qayta ochish" kind="secondary" onPress={() => flow.current?.reopen()} disabled={step === "done"} />
-            <Button title="Bekor qilish" kind="link" onPress={() => flow.current?.cancel()} disabled={step === "done"} />
+            <TextInput
+              style={[styles.input, styles.codeInput]}
+              value={code}
+              onChangeText={(text) => setCode(text.replace(/\D/g, "").slice(0, digits))}
+              placeholder={"•".repeat(digits)}
+              placeholderTextColor={colors.hint}
+              keyboardType="number-pad"
+              textContentType="oneTimeCode"
+              autoComplete="one-time-code"
+              maxLength={digits}
+              autoFocus
+              editable={step === "code" && !state?.expired}
+              onSubmitEditing={() => flow.current?.confirm(code)}
+            />
+            {state?.error ? <Text style={styles.error}>{state.error}</Text> : null}
+            {!state?.expired ? <Hint>Kod {clock((expiresAt ?? 0) - now)} amal qiladi.</Hint> : null}
+            <Button
+              title="Kirish"
+              busy={step === "verifying" || step === "done"}
+              disabled={state?.expired || code.length !== digits}
+              onPress={() => flow.current?.confirm(code)}
+            />
+            <Button
+              title={state?.expired || resendLeft <= 0 ? "Kodni qayta yuborish" : `Kodni qayta yuborish (${clock(resendLeft)})`}
+              kind="secondary"
+              disabled={step !== "code" || (!state?.expired && resendLeft > 0)}
+              onPress={resend}
+            />
+            <Button title="Boshqa raqam yoki username" kind="link" disabled={step === "done"} onPress={back} />
+            <Hint>Kodni hech kimga aytmang — Yuk Ekspert xodimlari ham uni so'ramaydi.</Hint>
           </Card>
         ) : (
           <Card style={styles.box}>
-            {step === "expired" ? (
-              <>
-                <Text style={styles.boxTitle}>⌛ Kirish kodi eskirdi</Text>
-                <Text style={styles.text}>Kod 10 daqiqa amal qiladi. Qaytadan urinib ko'ring.</Text>
-              </>
-            ) : (
-              <Text style={styles.text}>Kirish uchun Telegram hisobingiz kerak. Parol yoki SMS kod so'ralmaydi.</Text>
-            )}
-            {step === "error" && error ? <Text style={styles.error}>{error}</Text> : null}
-            <Button
-              title={step === "expired" || step === "error" ? "🔄 Qaytadan urinish" : "✈️ Telegram orqali kirish"}
-              busy={step === "starting"}
-              onPress={() => flow.current?.begin()}
+            <Text style={styles.boxTitle}>Kirish</Text>
+            <Text style={styles.text}>Botda ulashgan telefon raqamingizni yoki Telegram username'ingizni yozing.</Text>
+            <TextInput
+              style={styles.input}
+              value={login}
+              onChangeText={setLogin}
+              placeholder="90 123 45 67 yoki @username"
+              placeholderTextColor={colors.hint}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="off"
+              editable={step !== "sending"}
+              onSubmitEditing={submit}
             />
-            <Hint>
-              Agar havolani sizga boshqa odam yuborgan bo'lsa, botdagi «Ha, kiraman» ni bosmang — u sizning hisobingizga
-              kirib oladi.
-            </Hint>
+            {state?.error ? <Text style={styles.error}>{state.error}</Text> : null}
+            <Button title="Kod olish" busy={step === "sending"} disabled={!login.trim()} onPress={submit} />
           </Card>
         )}
+
+        {!codeStep ? (
+          <Card style={[styles.box, problem && styles.alert]}>
+            <Text style={styles.boxTitle}>
+              {problem === "not_found"
+                ? "Siz hali ro'yxatdan o'tmagansiz"
+                : problem === "not_member"
+                  ? "Kanal va guruhga a'zo bo'ling"
+                  : problem === "bot_blocked"
+                    ? "Botni qayta ishga tushiring"
+                    : "Ro'yxatdan o'tish"}
+            </Text>
+            {problem === "not_found" ? (
+              <Text style={styles.text}>Bu raqam yoki username bizda yo'q. Avval Telegram botimizda ro'yxatdan o'ting:</Text>
+            ) : problem === "not_member" ? (
+              <Text style={styles.text}>Ilova va bot faqat kanalimiz va guruhimiz a'zolariga ishlaydi. A'zo bo'lib, qayta «Kod olish» ni bosing.</Text>
+            ) : problem === "bot_blocked" ? (
+              <Text style={styles.text}>Bot sizga yoza olmadi — siz uni to'xtatgansiz. Botni ochib «Start» ni bosing, keyin qayta urinib ko'ring.</Text>
+            ) : (
+              <Text style={styles.text}>Ilovadan foydalanish uchun avval Telegram botimizda ro'yxatdan o'ting:</Text>
+            )}
+            <Text style={styles.text}>
+              1. <Text style={styles.bold}>@{botUsername}</Text> botini oching va <Text style={styles.bold}>«Start»</Text> ni bosing.{"\n"}
+              2. Kanal va guruhimizga a'zo bo'ling:
+            </Text>
+            <View style={styles.links}>
+              {(problem === "not_member" && state?.missing?.length ? state.missing.map(chatLink) : required).map((chat) => (
+                <Button key={chat.url ?? chat.title} title={`➕ ${chat.title}`} kind="secondary" onPress={() => open(chat.url)} />
+              ))}
+            </View>
+            <Text style={styles.text}>
+              3. Botda rolingizni tanlang va <Text style={styles.bold}>«📱 Raqam ulashish»</Text> tugmasi bilan telefon raqamingizni
+              ulashing (raqam bilan kirish uchun kerak).{"\n"}
+              4. Shu ilovaga qaytib, raqamingiz yoki username'ingiz bilan kiring.
+            </Text>
+            <Button title="✈️ Botni ochish" onPress={() => open(botUrl)} />
+          </Card>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -106,15 +197,27 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
-  content: { flexGrow: 1, justifyContent: "center", padding: space.lg, gap: space.xl },
+  content: { flexGrow: 1, justifyContent: "center", padding: space.lg, gap: space.lg },
   brand: { alignItems: "center", gap: space.sm },
   logo: { fontSize: 56 },
   title: { fontSize: 28, fontWeight: "800", color: colors.text },
   lead: { fontSize: 15, lineHeight: 21, color: colors.hint, textAlign: "center" },
   box: { gap: space.md },
+  alert: { borderWidth: 1, borderColor: colors.accent },
   boxTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
   text: { fontSize: 15, lineHeight: 23, color: colors.text },
   bold: { fontWeight: "700" },
-  warn: { fontSize: 14, color: colors.hint, textAlign: "center" },
+  links: { gap: space.sm },
+  input: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+    fontSize: 17,
+    color: colors.text,
+    backgroundColor: colors.card,
+  },
+  codeInput: { fontSize: 26, letterSpacing: 10, textAlign: "center", fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
 });

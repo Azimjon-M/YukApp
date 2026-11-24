@@ -33,7 +33,7 @@ Sozlamalar pastida «🧪 Sinov server: …» yozuvi chiqadi. Android emulyator 
 | Fayl | Nima |
 |---|---|
 | `src/app/_layout.js` | ildiz: sessiya va qaysi ekran ochiq bo'lishi (kirish / rol / bo'limlar) |
-| `src/app/login.js` | «Telegram orqali kirish» |
+| `src/app/login.js` | kirish: telefon raqami yoki @username → botdan kod; «Ro'yxatdan o'tish» yo'riqnomasi |
 | `src/app/rol.js` | haydovchi yoki yuk beruvchi |
 | `src/app/(tabs)/index.js` | 📋 Yuklar (haydovchi) / 🚚 Bo'sh mashinalar (yuk beruvchi) |
 | `src/app/(tabs)/sozlamalar.js` | hisob, pauza, sozlamalar, chiqish |
