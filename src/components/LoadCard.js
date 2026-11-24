@@ -2,7 +2,7 @@
 // @yuk/shared loadText.js dan. Server asl matnni bersa (post.text) — e'lon tahrirsiz ko'rsatiladi. Telefon tugmasi
 // qo'ng'iroq oynasini to'g'ridan-to'g'ri ochadi (tel:), yonidagi 📋 — raqamni nusxalaydi.
 import { memo } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { cargoText, formatContactPhone, phoneText, placeText, priceText, senderLink, truckPlaceText, truckVehicleText, vehicleText } from "@yuk/shared";
 import { colors, radius, space } from "../theme.js";
@@ -87,12 +87,14 @@ function Contacts({ load, post }) {
   );
 }
 
-// Asl e'lon matni — tahrirsiz (bot guruhda qanday ko'rgan bo'lsa shunday)
+// Asl e'lon matni — tahrirsiz. Uzun bo'lsa kartaning o'zida aylanadi (overflow), ro'yxat cho'zilib ketmaydi
 function RawText({ text }) {
   return (
-    <Text style={styles.raw} selectable>
-      {text}
-    </Text>
+    <ScrollView style={styles.rawBox} nestedScrollEnabled persistentScrollbar>
+      <Text style={styles.raw} selectable>
+        {text}
+      </Text>
+    </ScrollView>
   );
 }
 
@@ -164,6 +166,7 @@ const styles = StyleSheet.create({
   price: { fontWeight: "700" },
   muted: { fontSize: 14, color: colors.hint },
   contacts: { marginTop: space.sm, gap: space.sm },
+  rawBox: { maxHeight: 190 },
   raw: { fontSize: 15, lineHeight: 21, color: colors.text },
   phoneRow: { flexDirection: "row", gap: space.sm },
   call: {

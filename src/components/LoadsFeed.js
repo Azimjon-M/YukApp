@@ -1,143 +1,158 @@
-// Lenta: yuklar (haydovchiga) yoki bo'sh mashinalar (yuk beruvchiga), eng yangisi tepada. Mini App'dagi
-// «📋 Yuklar» / «🚚 Mashinalar» bilan bir xil (apps/web/src/LoadsPage.jsx): «Menga mos» yoki «Hammasi», oxirgi 24 soat.
-// Haydovchining «Menga mos» i — botdagi «🎛 Filtr» bo'yicha (guruhlar, mashina turi, qayerdan): bot yuboradigan e'lonlar.
-// Filtr hali tanlanmagan bo'lsa — «🎛 Filtr» bo'limiga o'tkaziladi. Eski «🎯 Saralangan» rejimda — yo'nalish bo'yicha.
-// Ro'yxat ochiq turganda har daqiqada o'zi yangilanadi; pastga tortsa — darhol; oxiriga yetsa — yana 30 tasi.
+// Lenta: yuklar (haydovchiga) yoki bo'sh mashinalar (yuk beruvchiga), eng yangisi tepada — faqat so'nggi 10 daqiqadagilar,
+// eskisi o'zi yo'qoladi. Hammasi «🎛 Filtr» bo'yicha (server view=mine; «Hammasi» kerak bo'lsa — Filtrda hamma guruh/mashina/joy).
+// Tepadagi filtr qatori qotib turadi (ro'yxat bilan aylanmaydi). Ekran ochiq turganda har 3 soniyada yangilanadi;
+// yangi kelgan e'lon tepadan siljib, biroz yonib chiqadi. Filtr tanlanmagan bo'lsa — «🎛 Filtr» bo'limiga o'tkaziladi.
 // Ko'rsatilgan yuklar «🔴 yangi» belgisidan chiqariladi (newLoads.js markSeen).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Animated, AppState, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
 import { getLoads, getTrucks } from "../api.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, radius, space } from "../theme.js";
-import { Button, Hint, Notice, Segmented, Spinner } from "../ui.js";
+import { Button, Notice, Spinner } from "../ui.js";
 import { LoadCard, TruckCard } from "./LoadCard.js";
 
-const PAGE = 30;
-const MAX = 500; // server bir so'rovda ko'pi bilan shuncha beradi
-const REFRESH_MS = 60_000;
-const VIEWS = [
-  { id: "mine", label: "Menga mos" },
-  { id: "all", label: "Hammasi" },
-];
-const HOURS = 24; // oxirgi 24 soat (muddat tanlash olib tashlandi — 0.5.0)
+const WINDOW_MS = 10 * 60_000; // ro'yxatda faqat so'nggi 10 daqiqa
+const HOURS = 1; // server kamida 1 soat beradi — 10 daqiqadan eskisi shu yerda tashlanadi
+const LIMIT = 200;
+const REFRESH_MS = 3_000;
 
 const KINDS = {
   yuk: { fetch: getLoads, Card: LoadCard, many: "yuk" },
   mashina: { fetch: getTrucks, Card: TruckCard, many: "bo'sh mashina" },
 };
 
+const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
+const fresh10 = (items, now) => items.filter((item) => now - timeOf(item) <= WINDOW_MS);
+
+// Yangi kelgan kartochka: tepadan siljib chiqadi va 1.5 soniya ko'k hoshiya bilan yonadi
+function Appear({ isNew, children }) {
+  const [anim] = useState(() => new Animated.Value(isNew ? 0 : 1));
+  const [glow] = useState(() => new Animated.Value(isNew ? 1 : 0));
+  useEffect(() => {
+    if (!isNew) return;
+    Animated.sequence([
+      Animated.spring(anim, { toValue: 1, useNativeDriver: false, friction: 7, tension: 60 }),
+      Animated.timing(glow, { toValue: 0, duration: 1500, useNativeDriver: false }),
+    ]).start();
+  }, [isNew, anim, glow]);
+  return (
+    <Animated.View
+      style={{
+        opacity: anim,
+        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [-24, 0] }) }],
+        borderRadius: radius + 2,
+        borderWidth: 2,
+        borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: ["transparent", colors.accent] }),
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+}
+
 export function LoadsFeed() {
   const { me } = useSession();
-  const { count: fresh, markSeen } = useNewLoads();
+  const { count: freshCount, markSeen } = useNewLoads();
   const kind = me.role === "yuk_beruvchi" ? "mashina" : "yuk";
   const k = KINDS[kind];
   const driver = kind === "yuk";
   const profile = me.profile;
 
-  const [view, setView] = useState("mine");
-  const hours = HOURS;
-  // Haydovchi filtrni hali tanlamagan — «Menga mos» hisoblanmaydi, «🎛 Filtr» ga o'tkaziladi
-  const noFilter = driver && view === "mine" && !profile;
-  // Eski «🎯 Saralangan» rejim: «Menga mos» yo'nalishsiz chiqmaydi
+  // Haydovchi filtrni hali tanlamagan — ro'yxat hisoblanmaydi, «🎛 Filtr» ga o'tkaziladi
+  const noFilter = driver && !profile;
+  // Eski «🎯 Saralangan» rejim: yo'nalishsiz chiqmaydi
   const sorted = driver && Boolean(profile) && sortedReady(profile);
-  const needRoute = sorted && view === "mine" && !routeChosen(profile);
+  const needRoute = sorted && !routeChosen(profile);
   const idle = noFilter || needRoute; // ro'yxat so'ralmaydi
   // Filtr yoki yo'nalish o'zgarsa (shu ilovada yoki botda) — ro'yxat qaytadan so'raladi
   const profileKey = JSON.stringify(profile ?? null);
 
-  const [state, setState] = useState({ items: [], total: 0, loading: true, refreshing: false, more: false, error: null });
-  const shown = useRef(PAGE); // nechta ko'rsatilyapti — yangilashda ham shuncha qoladi
+  const [state, setState] = useState({ items: [], fresh: new Set(), loading: true, refreshing: false, error: null });
   const request = useRef(0); // eng oxirgi so'rov raqami: eski javob yangisini bosib ketmasin
   const focused = useRef(false);
+  const known = useRef(null); // ko'rilgan id'lar: null = birinchi yuklash (animatsiyasiz)
 
-  // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi) | "more" (yana 30 ta)
+  // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
   const load = useCallback(
-    async (count, mode = "full") => {
+    async (mode = "full") => {
       const id = ++request.current;
-      setState((s) => ({
-        ...s,
-        loading: mode === "full",
-        refreshing: mode === "refresh",
-        more: mode === "more",
-        error: mode === "full" ? null : s.error,
-      }));
+      setState((s) => ({ ...s, loading: mode === "full", refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
       try {
-        const data = await k.fetch({ view, hours, limit: Math.min(count, MAX) });
+        const data = await k.fetch({ view: "mine", hours: HOURS, limit: LIMIT });
         if (id !== request.current) return;
-        shown.current = count;
-        setState({ items: data.items, total: data.total, loading: false, refreshing: false, more: false, error: null });
-        if (view === "mine" && focused.current) markSeen(data.items);
+        const items = fresh10(data.items, Date.now());
+        // Oldin ko'rilmagan id'lar — yangi (animatsiya); birinchi yuklashda hech biri yangi emas
+        const seen = known.current;
+        const fresh = new Set(seen ? items.filter((item) => !seen.has(item.id)).map((item) => item.id) : []);
+        known.current = new Set(items.map((item) => item.id));
+        setState({ items, fresh, loading: false, refreshing: false, error: null });
+        if (focused.current) markSeen(data.items);
       } catch (error) {
         if (id !== request.current) return;
-        // Jim yangilashda xato bo'lsa — eski ro'yxat qoladi, faqat tepada qator
-        setState((s) => ({ ...s, loading: false, refreshing: false, more: false, error }));
+        // Jim yangilashda xato bo'lsa — eski ro'yxat qoladi (10 daqiqadan eskisi baribir yo'qoladi), tepada qator
+        setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error }));
       }
     },
     // profileKey so'rovda ishlatilmaydi, lekin o'zgarsa load yangilanadi → pastdagi useEffect ro'yxatni qayta so'raydi
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [k, view, hours, profileKey, markSeen],
+    [k, profileKey, markSeen],
   );
 
-  // Filtr o'zgardi — boshidan
+  // Filtr o'zgardi — boshidan (eski ro'yxat animatsiyasiz almashadi)
   useEffect(() => {
     if (idle) return;
-    shown.current = PAGE;
-    load(PAGE);
+    known.current = null;
+    load();
   }, [load, idle]);
 
-  // Ekran ko'rinib turganda: darhol jimgina yangilanadi, keyin har daqiqada; ilovaga qaytganda — darhol.
-  // Filtr tanlanmagan bo'lsa — «🎛 Filtr» ga o'tadi
+  // Ekran ko'rinib turganda: darhol, keyin har 3 soniyada jimgina; ilovaga qaytganda — darhol.
   useFocusEffect(
     useCallback(() => {
       focused.current = true;
+      const blur = () => {
+        focused.current = false;
+      };
       if (noFilter) {
         router.navigate("/filtr");
-        return () => {
-          focused.current = false;
-        };
+        return blur;
       }
-      if (idle) {
-        return () => {
-          focused.current = false;
-        };
-      }
-      load(shown.current, "silent");
+      if (idle) return blur;
+      load("silent");
       const timer = setInterval(() => {
-        if (AppState.currentState === "active") load(shown.current, "silent");
+        if (AppState.currentState === "active") load("silent");
       }, REFRESH_MS);
       const sub = AppState.addEventListener("change", (next) => {
-        if (next === "active") load(shown.current, "silent");
+        if (next === "active") load("silent");
       });
       return () => {
-        focused.current = false;
+        blur();
         clearInterval(timer);
         sub.remove();
       };
     }, [load, idle, noFilter]),
   );
 
-  // Ro'yxat ochiq turganda yangi yuk keldi (newLoads.js sezdi) — darhol jimgina yangilanadi va belgi o'chadi
+  // Yangi yuk keldi (newLoads.js sezdi) — darhol jimgina yangilanadi va belgi o'chadi
   useEffect(() => {
-    if (!fresh || idle || view !== "mine" || !focused.current) return undefined;
-    const timer = setTimeout(() => load(shown.current, "silent"), 0);
+    if (!freshCount || idle || !focused.current) return undefined;
+    const timer = setTimeout(() => load("silent"), 0);
     return () => clearTimeout(timer);
-  }, [fresh, idle, view, load]);
+  }, [freshCount, idle, load]);
 
-  const { items, total, loading, refreshing, more, error } = state;
-  const hasMore = items.length < total && items.length < MAX;
+  const { items, fresh, loading, refreshing, error } = state;
 
-  const header = (
-    <View style={styles.toolbar}>
+  // Qotib turadigan tepa qism: pauza, filtr (yoki yo'nalish) qatori, xato
+  const top = (
+    <View style={styles.top}>
       {!me.active ? (
         <View style={styles.paused}>
           <Text style={styles.pausedText}>⏸ Pauzada — bot e'lon yubormayapti. Pastdagi «▶️ Davom etish» ni bosing.</Text>
         </View>
       ) : null}
-      <Segmented options={VIEWS} value={view} onChange={setView} />
-      {driver && view === "mine" && profile && !sorted ? (
+      {driver && profile && !sorted ? (
         <View style={styles.bar}>
           <Text style={styles.barText} numberOfLines={2}>
             {feedLabel(profile)}
@@ -145,7 +160,7 @@ export function LoadsFeed() {
           <Button title="O'zgartirish" kind="link" onPress={() => router.navigate("/filtr")} />
         </View>
       ) : null}
-      {sorted && view === "mine" && !needRoute ? (
+      {sorted && !needRoute ? (
         <View style={styles.bar}>
           <Text style={styles.barText} numberOfLines={2}>
             🧭 <Text style={styles.bold}>{routeLabel(profile)}</Text>
@@ -153,7 +168,6 @@ export function LoadsFeed() {
           <Button title="O'zgartirish" kind="link" onPress={() => router.push("/yonalish")} />
         </View>
       ) : null}
-      {!idle && !loading && !error ? <Hint>{total ? `${total} ta ${k.many}` : null}</Hint> : null}
       {error && items.length ? <Text style={styles.error}>⚠️ {error.message}</Text> : null}
     </View>
   );
@@ -161,7 +175,6 @@ export function LoadsFeed() {
   if (noFilter) {
     return (
       <View style={[styles.page, styles.pad]}>
-        {header}
         <Notice title="🎛 Avval filtrni tanlang" action={<Button title="🎛 Filtrga o'tish" onPress={() => router.navigate("/filtr")} />}>
           Qaysi mashina va qayerdan ketadigan yuklar kerakligini belgilang — shunga mos e'lonlar shu yerda va botda chiqadi.
         </Notice>
@@ -172,47 +185,44 @@ export function LoadsFeed() {
   if (needRoute) {
     return (
       <View style={[styles.page, styles.pad]}>
-        {header}
+        {top}
         <Notice title="🧭 Yo'nalishni tanlang" action={<Button title="📍 Qayerdan → 🏁 Qayerga" onPress={() => router.push("/yonalish")} />}>
-          «Menga mos» yuklar siz tanlagan yo'nalish bo'yicha chiqadi. Bot ham yangi yuklarni shu bo'yicha yuboradi.
+          Yuklar siz tanlagan yo'nalish bo'yicha chiqadi. Bot ham yangi yuklarni shu bo'yicha yuboradi.
         </Notice>
       </View>
     );
   }
 
   return (
-    <FlatList
-      style={styles.page}
-      contentContainerStyle={styles.list}
-      data={loading ? [] : items}
-      keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <k.Card item={item} />}
-      ListHeaderComponent={header}
-      ListEmptyComponent={
-        loading ? (
-          <Spinner />
-        ) : error ? (
-          <Notice title="Ro'yxat ochilmadi" action={<Button title="Qayta urinish" onPress={() => load(shown.current)} />}>
-            {error.message}
-          </Notice>
-        ) : (
-          <Notice title={`Hozircha ${k.many} yo'q`}>
-            {view === "mine"
-              ? `Oxirgi 24 soatda filtringizga mos ${k.many} chiqmadi. Filtrni kengaytirib ko'ring.`
-              : "Oxirgi 24 soatda e'lon chiqmadi."}
-          </Notice>
-        )
-      }
-      ListFooterComponent={more ? <Spinner /> : null}
-      onEndReachedThreshold={0.5}
-      onEndReached={() => {
-        if (hasMore && !more && !loading && !refreshing) load(shown.current + PAGE, "more");
-      }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => load(shown.current, "refresh")} colors={[colors.accent]} />
-      }
-      ItemSeparatorComponent={Gap}
-    />
+    <View style={styles.page}>
+      {top}
+      <FlatList
+        style={styles.page}
+        contentContainerStyle={styles.list}
+        data={loading ? [] : items}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={({ item }) => (
+          <Appear isNew={fresh.has(item.id)}>
+            <k.Card item={item} />
+          </Appear>
+        )}
+        ListEmptyComponent={
+          loading ? (
+            <Spinner />
+          ) : error ? (
+            <Notice title="Ro'yxat ochilmadi" action={<Button title="Qayta urinish" onPress={() => load()} />}>
+              {error.message}
+            </Notice>
+          ) : (
+            <Notice title="Hozircha yangi e'lon yo'q">
+              So'nggi 10 daqiqada filtringizga mos {k.many} chiqmadi. Yangilari shu yerda o'zi paydo bo'ladi.
+            </Notice>
+          )
+        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} colors={[colors.accent]} />}
+        ItemSeparatorComponent={Gap}
+      />
+    </View>
   );
 }
 
@@ -221,8 +231,8 @@ const Gap = () => <View style={{ height: space.md }} />;
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   list: { padding: space.md, paddingBottom: space.xl },
-  pad: { padding: space.md },
-  toolbar: { gap: space.md, marginBottom: space.md },
+  pad: { padding: space.md, gap: space.md },
+  top: { gap: space.sm, paddingHorizontal: space.md, paddingTop: space.md, backgroundColor: colors.bg },
   paused: { backgroundColor: "#fff4e5", borderRadius: radius, padding: space.md, borderWidth: 1, borderColor: "#f5c27a" },
   pausedText: { fontSize: 14, lineHeight: 19, color: "#8a5300", fontWeight: "600" },
   bar: {
