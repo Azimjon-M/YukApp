@@ -1,24 +1,21 @@
 // Lenta: yuklar (haydovchiga) yoki bo'sh mashinalar (yuk beruvchiga), eng yangisi tepada. Mini App'dagi
-// «📋 Yuklar» / «🚚 Mashinalar» bilan bir xil (apps/web/src/LoadsPage.jsx): «Menga mos» yoki «Hammasi», 6/24/72 soat.
+// «📋 Yuklar» / «🚚 Mashinalar» bilan bir xil (apps/web/src/LoadsPage.jsx), 6/24/72 soat.
+// «Menga mos» va «Hammasi» — pastki paneldagi ikki tab (app/(app)/(asosiy)), har biri shu komponentni o'z view'i bilan.
 // Haydovchining «Menga mos» i — tanlangan yo'nalish bo'yicha (tepada «🧭 Qayerdan → Qayerga · O'zgartirish»).
 // Ro'yxat ochiq turganda har daqiqada o'zi yangilanadi; pastga tortsa — darhol; oxiriga yetsa — yana 30 tasi.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, FlatList, Linking, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { FEED_MODES, feedMode, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
-import { getLoads, getTrucks } from "../../api.js";
-import { LoadCard, TruckCard } from "../../components/LoadCard.js";
-import { useSession } from "../../session.js";
-import { colors, radius, space } from "../../theme.js";
-import { Button, Hint, Notice, Segmented, Spinner } from "../../ui.js";
+import { getLoads, getTrucks } from "../api.js";
+import { LoadCard, TruckCard } from "./LoadCard.js";
+import { useSession } from "../session.js";
+import { colors, radius, space } from "../theme.js";
+import { Button, Hint, Notice, Segmented, Spinner } from "../ui.js";
 
 const PAGE = 30;
 const MAX = 500; // server bir so'rovda ko'pi bilan shuncha beradi
 const REFRESH_MS = 60_000;
-const VIEWS = [
-  { id: "mine", label: "Menga mos" },
-  { id: "all", label: "Hammasi" },
-];
 const HOURS = [
   { id: 6, label: "6 soat" },
   { id: 24, label: "24 soat" },
@@ -34,10 +31,11 @@ const KINDS = {
 function rawFeedNote(profile) {
   const mode = FEED_MODES[feedMode(profile)];
   const how = mode.groups ? "tanlagan guruhlaringizdagi yuk e'lonlari" : "yuk e'lonlari";
-  return `${mode.icon} ${mode.name}: ${how} botga darhol keladi. Bu yerda — hammasi.`;
+  return `${mode.icon} ${mode.name}: ${how} botga darhol keladi. Hamma yuklar — «Hammasi» bo'limida.`;
 }
 
-export default function LoadsScreen() {
+// view: "mine" (Menga mos) | "all" (Hammasi)
+export function LoadsFeed({ view }) {
   const { me, botUsername } = useSession();
   const kind = me.role === "yuk_beruvchi" ? "mashina" : "yuk";
   const k = KINDS[kind];
@@ -46,10 +44,10 @@ export default function LoadsScreen() {
 
   // «Menga mos» faqat hisoblansa: haydovchiga transport (va saralangan rejim) kerak, yuk beruvchiga — hech narsa
   const canMine = driver ? Boolean(profile) && sortedReady(profile) : true;
-  const [pickedView, setPickedView] = useState("mine");
-  const view = canMine ? pickedView : "all";
   // Haydovchining «Menga mos» i yo'nalishsiz chiqmaydi — avval «Qayerdan → Qayerga»
-  const needRoute = driver && view === "mine" && !routeChosen(profile);
+  const blocked = view === "mine" && !canMine; // «Menga mos» hisoblanmaydi — tushuntirish chiqadi
+  const needRoute = driver && view === "mine" && canMine && !routeChosen(profile);
+  const idle = blocked || needRoute; // ro'yxat so'ralmaydi
   const [hours, setHours] = useState(24);
   // Sozlamalar yoki yo'nalish o'zgarsa (shu ilovada yoki botda) — ro'yxat qaytadan so'raladi
   const profileKey = JSON.stringify(profile ?? null);
@@ -89,15 +87,15 @@ export default function LoadsScreen() {
 
   // Filtr o'zgardi — boshidan
   useEffect(() => {
-    if (needRoute) return;
+    if (idle) return;
     shown.current = PAGE;
     load(PAGE);
-  }, [load, needRoute]);
+  }, [load, idle]);
 
   // Ekran ko'rinib turganda har daqiqada yangilanadi; ilovaga qaytganda — darhol
   useFocusEffect(
     useCallback(() => {
-      if (needRoute) return undefined;
+      if (idle) return undefined;
       const timer = setInterval(() => {
         if (AppState.currentState === "active") load(shown.current, "silent");
       }, REFRESH_MS);
@@ -108,7 +106,7 @@ export default function LoadsScreen() {
         clearInterval(timer);
         sub.remove();
       };
-    }, [load, needRoute]),
+    }, [load, idle]),
   );
 
   const { items, total, loading, refreshing, more, error } = state;
@@ -116,20 +114,6 @@ export default function LoadsScreen() {
 
   const header = (
     <View style={styles.toolbar}>
-      {canMine ? (
-        <Segmented options={VIEWS} value={view} onChange={setPickedView} />
-      ) : driver && profile ? (
-        <Hint>{rawFeedNote(profile)}</Hint>
-      ) : null}
-      {driver && !profile ? (
-        <Notice
-          title="🚚 Transportingizni kiriting"
-          action={<Button title="Botda to'ldirish" kind="secondary" onPress={() => Linking.openURL(`https://t.me/${botUsername}`)} />}
-        >
-          Mos yuklarni saralash uchun transportingiz kerak. Hozircha uni botdagi «⚙️ Sozlamalar» da kiriting — ilovada ham
-          tez orada bo'ladi. Pastda — hamma yuklar.
-        </Notice>
-      ) : null}
       {driver && view === "mine" && !needRoute ? (
         <View style={styles.routeBar}>
           <Text style={styles.routeText} numberOfLines={2}>
@@ -145,6 +129,27 @@ export default function LoadsScreen() {
       {error && items.length ? <Text style={styles.error}>⚠️ {error.message}</Text> : null}
     </View>
   );
+
+  // «Menga mos» hisoblanmaydi: transport kiritilmagan yoki «⚡ Tezkor» / «📌 Mening guruhlarim» rejimi
+  if (blocked) {
+    return (
+      <View style={[styles.page, styles.pad]}>
+        {driver && !profile ? (
+          <Notice
+            title="🚚 Transportingizni kiriting"
+            action={<Button title="Botda to'ldirish" onPress={() => Linking.openURL(`https://t.me/${botUsername}`)} />}
+          >
+            Mos yuklarni saralash uchun transportingiz kerak. Hozircha uni botdagi «⚙️ Sozlamalar» da kiriting — ilovada
+            ham tez orada bo'ladi. Hamma yuklar — pastdagi «Hammasi» bo'limida.
+          </Notice>
+        ) : (
+          <Notice title="Saralash o'chiq" action={<Button title="Hammasini ko'rish" onPress={() => router.navigate("/hammasi")} />}>
+            {profile ? rawFeedNote(profile) : ""}
+          </Notice>
+        )}
+      </View>
+    );
+  }
 
   if (needRoute) {
     return (

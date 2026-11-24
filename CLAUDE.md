@@ -22,8 +22,15 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `appLogin.js`) was removed from the app; the server endpoints stay for 0.1.0 installs. The server side was specified in
   a prompt for his server chat (2026-11-24) — the app needs it deployed before 0.2.0 can log in.
   Token in expo-secure-store (`src/storage.js`; localStorage on web). 401 with a token → `leave()`; 403 blocked → «Uzr».
-- Screens: login, holat (loading/blocked/offline), rol, (tabs)/index (loads or trucks by role), (tabs)/sozlamalar,
-  yonalish. Stack.Protected guards in `src/app/_layout.js`.
+- Screens: login, holat (loading/blocked/offline), rol, yonalish + `(app)` group. Stack.Protected guards in
+  `src/app/_layout.js`.
+- **Navigation (0.3.0, 2026-11-24, his «Saidbarli bo'lsin ammo pastdagi panel ham bo'lsin»):** sidebar = custom
+  `src/components/SideMenu.js` (Modal + Animated, ☰ `MenuButton` in every header) — deliberately NOT expo-router/drawer
+  (needs reanimated + gesture-handler native builds). Sidebar picks a section, each section has its own bottom tabs:
+  `(app)/(asosiy)` «Menga mos» (index) · «Hammasi» (both = `components/LoadsFeed.js` with `view` prop; the old Segmented
+  mine/all is gone) · `(app)/sozlamalar` «E'lon» (index: bot active, transport/filter, route) · «Hisob» (hisob.js:
+  account, role, sign out, delete) · `(app)/haqida` «Dastur haqida»: author Meliboev Azimjon (t.me/gt_rushsher) and his
+  support cards Visa 4231…6273 / Humo 9860…4705 (he asked to show them publicly; tap = copy via expo-clipboard).
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

@@ -5,7 +5,7 @@
 //   loading / blocked / offline → holat.js  (kutish, «Uzr...», «Aloqa yo'q»)
 //   out                         → login.js  («Telegram orqali kirish»)
 //   in, rol tanlanmagan         → rol.js    («Kim sifatida foydalanasiz?»)
-//   in, rol bor                 → (tabs)    (📋 Yuklar / 🚚 Mashinalar · ⚙️ Sozlamalar), yonalish.js, rol.js
+//   in, rol bor                 → (app)     (☰ yon menyu: Yuklar · Sozlamalar · Dastur haqida), yonalish.js, rol.js
 import { SplashScreen, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SessionProvider, useSession } from "../session.js";
@@ -44,7 +44,7 @@ function RootStack() {
       }}
     >
       <Stack.Protected guard={hasRole}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen name="yonalish" options={{ title: "Yo'nalish" }} />
       </Stack.Protected>
       <Stack.Protected guard={signedIn}>
