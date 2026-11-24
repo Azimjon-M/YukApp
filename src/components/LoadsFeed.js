@@ -2,12 +2,13 @@
 // eskisi o'zi yo'qoladi. Hammasi «🎛 Filtr» bo'yicha (server view=mine; «Hammasi» kerak bo'lsa — Filtrda hamma guruh/mashina/joy).
 // Tepadagi filtr qatori qotib turadi (ro'yxat bilan aylanmaydi). Ekran ochiq turganda har 3 soniyada yangilanadi;
 // yangi kelgan e'lon tepadan siljib, biroz yonib chiqadi. Filtr tanlanmagan bo'lsa — «🎛 Filtr» bo'limiga o'tkaziladi.
+// Haydovchiga e'lonlar /pub/feed dan — bot yuboradigan asl e'lonlarning o'zi (Azimjon, 2026-11-24: «foydalanuvchilarga bu kerak»).
 // Ko'rsatilgan yuklar «🔴 yangi» belgisidan chiqariladi (newLoads.js markSeen).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, AppState, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
-import { feedLabel, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
-import { getLoads, getTrucks } from "../api.js";
+import { feedLabel } from "@yuk/shared";
+import { getFeed, getTrucks } from "../api.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, radius, space } from "../theme.js";
@@ -15,13 +16,13 @@ import { Button, Notice, Spinner } from "../ui.js";
 import { LoadCard, TruckCard } from "./LoadCard.js";
 
 const WINDOW_MS = 10 * 60_000; // ro'yxatda faqat so'nggi 10 daqiqa
-const HOURS = 1; // server kamida 1 soat beradi — 10 daqiqadan eskisi shu yerda tashlanadi
 const LIMIT = 200;
 const REFRESH_MS = 3_000;
 
 const KINDS = {
-  yuk: { fetch: getLoads, Card: LoadCard, many: "yuk" },
-  mashina: { fetch: getTrucks, Card: TruckCard, many: "bo'sh mashina" },
+  // Haydovchiga — botdagidek asl e'lonlar (/pub/feed, AI'siz, hammasi); yuk beruvchiga — bo'sh mashinalar (server 1 soatdan kam bermaydi)
+  yuk: { fetch: () => getFeed({ minutes: 10, limit: LIMIT }), Card: LoadCard, many: "e'lon" },
+  mashina: { fetch: () => getTrucks({ view: "mine", hours: 1, limit: LIMIT }), Card: TruckCard, many: "bo'sh mashina" },
 };
 
 const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
@@ -63,10 +64,7 @@ export function LoadsFeed() {
 
   // Haydovchi filtrni hali tanlamagan — ro'yxat hisoblanmaydi, «🎛 Filtr» ga o'tkaziladi
   const noFilter = driver && !profile;
-  // Eski «🎯 Saralangan» rejim: yo'nalishsiz chiqmaydi
-  const sorted = driver && Boolean(profile) && sortedReady(profile);
-  const needRoute = sorted && !routeChosen(profile);
-  const idle = noFilter || needRoute; // ro'yxat so'ralmaydi
+  const idle = noFilter; // ro'yxat so'ralmaydi
   // Filtr yoki yo'nalish o'zgarsa (shu ilovada yoki botda) — ro'yxat qaytadan so'raladi
   const profileKey = JSON.stringify(profile ?? null);
 
@@ -81,7 +79,7 @@ export function LoadsFeed() {
       const id = ++request.current;
       setState((s) => ({ ...s, loading: mode === "full", refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
       try {
-        const data = await k.fetch({ view: "mine", hours: HOURS, limit: LIMIT });
+        const data = await k.fetch();
         if (id !== request.current) return;
         const items = fresh10(data.items, Date.now());
         // Oldin ko'rilmagan id'lar — yangi (animatsiya); birinchi yuklashda hech biri yangi emas
@@ -152,20 +150,12 @@ export function LoadsFeed() {
           <Text style={styles.pausedText}>⏸ Pauzada — bot e'lon yubormayapti. Pastdagi «▶️ Davom etish» ni bosing.</Text>
         </View>
       ) : null}
-      {driver && profile && !sorted ? (
+      {driver && profile ? (
         <View style={styles.bar}>
           <Text style={styles.barText} numberOfLines={2}>
             {feedLabel(profile)}
           </Text>
           <Button title="O'zgartirish" kind="link" onPress={() => router.navigate("/filtr")} />
-        </View>
-      ) : null}
-      {sorted && !needRoute ? (
-        <View style={styles.bar}>
-          <Text style={styles.barText} numberOfLines={2}>
-            🧭 <Text style={styles.bold}>{routeLabel(profile)}</Text>
-          </Text>
-          <Button title="O'zgartirish" kind="link" onPress={() => router.push("/yonalish")} />
         </View>
       ) : null}
       {error && items.length ? <Text style={styles.error}>⚠️ {error.message}</Text> : null}
@@ -177,17 +167,6 @@ export function LoadsFeed() {
       <View style={[styles.page, styles.pad]}>
         <Notice title="🎛 Avval filtrni tanlang" action={<Button title="🎛 Filtrga o'tish" onPress={() => router.navigate("/filtr")} />}>
           Qaysi mashina va qayerdan ketadigan yuklar kerakligini belgilang — shunga mos e'lonlar shu yerda va botda chiqadi.
-        </Notice>
-      </View>
-    );
-  }
-
-  if (needRoute) {
-    return (
-      <View style={[styles.page, styles.pad]}>
-        {top}
-        <Notice title="🧭 Yo'nalishni tanlang" action={<Button title="📍 Qayerdan → 🏁 Qayerga" onPress={() => router.push("/yonalish")} />}>
-          Yuklar siz tanlagan yo'nalish bo'yicha chiqadi. Bot ham yangi yuklarni shu bo'yicha yuboradi.
         </Notice>
       </View>
     );

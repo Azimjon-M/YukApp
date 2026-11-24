@@ -38,7 +38,8 @@ async function copyPhone(phone) {
 // Pastki qism (tagma-tag): lichka · asl e'lon @guruh (1 qator) → vaqt → telefon tugmalari (+ nusxa)
 function Contacts({ load, post }) {
   const phones = (load.phones ?? []).map(phoneText);
-  const lichka = senderLink(post.sender);
+  // Username yo'q bo'lsa — Telegram ID orqali (yozgan odam bilan bir guruhda bo'lsa ochiladi)
+  const lichka = senderLink(post.sender) ?? (post.senderId ? `tg://user?id=${post.senderId}` : null);
   const source = post.source?.startsWith("@") ? post.source : null;
   return (
     <View style={styles.contacts}>
@@ -98,7 +99,10 @@ function RawText({ text }) {
   );
 }
 
-function Route({ from, to }) {
+// Yo'nalish noma'lum bo'lsa (asl e'londan topilmadi) — sarlavha chiqmaydi, matnning o'zi yetarli
+const hasPlace = (load, side) => Boolean(load[`${side}City`] || load[`${side}Region`] || load[`${side}Country`]);
+function Route({ from, to, load }) {
+  if (load && !hasPlace(load, "from") && !hasPlace(load, "to")) return null;
   return (
     <Text style={styles.route}>
       {from} <Text style={styles.arrow}>→</Text> {to}
@@ -110,7 +114,8 @@ export const LoadCard = memo(function LoadCard({ item }) {
   const { load, post } = item;
   return (
     <View style={styles.card}>
-      <Route from={placeText(load, "from")} to={placeText(load, "to")} />
+      <Route from={placeText(load, "from")} to={placeText(load, "to")} load={load} />
+      {post.media ? <Text style={styles.muted}>{post.media === "round" ? "📹 Dumaloq videodan (matnga o'girildi)" : "🎤 Ovozli xabardan (matnga o'girildi)"}</Text> : null}
       {post.text ? (
         <RawText text={post.text} />
       ) : (

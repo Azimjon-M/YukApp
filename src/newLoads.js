@@ -1,10 +1,10 @@
 // «🔴 Yangi yuklar» belgisi: pastdagi «📋 Yuklar» tugmasida va yon menyudagi «Yuklar» qatorida qizil doirada son.
-// Ilova ochiq turganda har 30 soniyada «Menga mos» ro'yxatining boshi so'raladi; oxirgi ko'rilgan yukdan (id) keyingilari —
+// Ilova ochiq turganda har 30 soniyada lentaning boshi so'raladi (haydovchiga /pub/feed — e'lon id); oxirgi ko'rilgandan keyingilari —
 // yangi. «📋 Yuklar» ochilsa — hammasi ko'rilgan bo'ladi (markSeen). Pauzada belgi yo'q (yuk kelmaydi).
 // Oxirgi ko'rilgan id telefonda saqlanadi (storage.js), ilova qayta ochilganda ham hisob joyidan davom etadi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { getLoads, getTrucks } from "./api.js";
+import { getFeed, getTrucks } from "./api.js";
 import { useSession } from "./session.js";
 import { loadValue, saveValue } from "./storage.js";
 
@@ -25,7 +25,7 @@ export function NewLoadsProvider({ children }) {
   // Haydovchiga «Menga mos» faqat filtr (profil) bo'lsa hisoblanadi; yuk beruvchiga — har doim
   const enabled = Boolean(me?.active) && (kind === "mashina" || Boolean(me?.profile));
   const profileKey = JSON.stringify(me?.profile ?? null);
-  const key = `yuk_seen_${kind}`;
+  const key = kind === "yuk" ? "yuk_seen_feed" : `yuk_seen_${kind}`; // feed — e'lon id (eski yuk_seen_yuk — yuk id edi)
   const [count, setCount] = useState(0);
   const seen = useRef(undefined); // undefined — xotiradan hali o'qilmagan, null — hech qachon ko'rilmagan
 
@@ -43,7 +43,7 @@ export function NewLoadsProvider({ children }) {
         const stored = Number(await loadValue(key));
         seen.current = stored > 0 ? stored : null;
       }
-      const data = await (kind === "yuk" ? getLoads : getTrucks)({ view: "mine", hours: 24, limit: PEEK });
+      const data = await (kind === "yuk" ? getFeed({ minutes: 10, limit: PEEK }) : getTrucks({ view: "mine", hours: 24, limit: PEEK }));
       const top = topId(data.items);
       // Birinchi marta — eski yuklar «yangi» deb sanalmaydi
       if (seen.current == null) {

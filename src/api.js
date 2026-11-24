@@ -136,6 +136,8 @@ export const deleteMe = () => request("DELETE", "/pub/me");
 
 // view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
 export const getLoads = (params = {}) => request("GET", `/pub/loads?${query(params)}`);
+// Ilova lentasi (haydovchiga): bot yuboradigan asl e'lonlar, filtr bo'yicha — { minutes, limit } → { total, items }
+export const getFeed = (params = {}) => request("GET", `/pub/feed?${query(params)}`);
 // Bo'sh mashinalar (yuk beruvchiga) — xuddi shunday
 export const getTrucks = (params = {}) => request("GET", `/pub/trucks?${query(params)}`);
 
