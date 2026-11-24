@@ -5,7 +5,7 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
 `../YukPlatform/CLAUDE.md` (talk to Azimjon in **Uzbek (Latin)**; code comments in Uzbek; explain new things as you go).
 
 - Started 2026-11-23 at his request («YukPlatform darajasida papka yaratib ichiga ilova quramiz»): sibling folder, its own
-  git repo: **private** GitHub `Azimjon-M/YukApp`, branch `main` (created and first pushed 2026-11-24 at his «yangi repo
+  git repo: GitHub `Azimjon-M/YukApp` (**public** since 2026-11-24 — never commit keys, tokens, real phones), branch `main` (created and first pushed 2026-11-24 at his «yangi repo
   ochib push qil»; local `master` renamed to `main` before that). Push after work like YukPlatform; never commit `keys/`,
   `apk/`, real phones or tokens. Backend is NOT changed from here — only `https://yuk.gtpro.uz/pub` is used
   (`../YukPlatform/apps/mobile/API.md`, `apps/api/src/public.js` header). A missing endpoint → tell him which and why,
@@ -43,3 +43,8 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `--key-pass` dropped (PKCS12: key password = store password). Result `apk/yuk-ekspert-0.1.0.apk` 66 MB, signer
   `CN=Yuk Ekspert, C=UZ` (SHA-256 a48f15e2…). Installed on his phone Infinix X6873 (Android 16, arm64) via adb; starts,
   no crash. Login with his Telegram not checked by Claude (he was using the phone).
+- **Workflow from the server (2026-11-24, his «sen o'zgarishlar qilasan, men gitdan olib telefonimga build qilib test qilaman»):**
+  Claude also works on a clone at `/data/YukApp` on the YukPlatform server (Linux, next to `/data/YukPlatform`, so
+  `@yuk/shared` resolves) — edits, `npm test`, `npx eslint src test`, push to `main`. No Android SDK/phone there: he
+  pulls on his Windows PC and builds/installs (`npm run apk` or `npx expo run:android`). Before he builds: keep
+  `version`/`versionCode` bumps in mind, and say what to test.
