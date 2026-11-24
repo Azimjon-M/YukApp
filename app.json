@@ -2,11 +2,11 @@
   "expo": {
     "name": "Yuk Ekspert",
     "slug": "yuk-ekspert",
-    "version": "0.7.1",
+    "version": "0.8.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "yukekspert",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
@@ -17,7 +17,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "versionCode": 8
+      "versionCode": 9
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -31,7 +31,11 @@
         {
           "image": "./assets/splash-icon.png",
           "imageWidth": 160,
-          "backgroundColor": "#efeff4"
+          "backgroundColor": "#efeff4",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0f1419"
+          }
         }
       ]
     ]

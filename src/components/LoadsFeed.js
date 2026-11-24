@@ -11,7 +11,7 @@ import { feedLabel } from "@yuk/shared";
 import { getFeed, getTrucks } from "../api.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
-import { colors, radius, space } from "../theme.js";
+import { colors, radius, space, themed } from "../theme.js";
 import { Button, Notice, Spinner } from "../ui.js";
 import { LoadCard, TruckCard } from "./LoadCard.js";
 
@@ -207,7 +207,8 @@ export function LoadsFeed() {
 
 const Gap = () => <View style={{ height: space.md }} />;
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   list: { padding: space.md, paddingBottom: space.xl },
   pad: { padding: space.md, gap: space.md },
@@ -219,24 +220,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     zIndex: 2,
     elevation: 6, // Android soyasi
-    shadowColor: "#000", // iOS / web soyasi
+    shadowColor: colors.shadow, // iOS / web soyasi
     shadowOpacity: 0.18,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
-  paused: { backgroundColor: "#fff4e5", borderRadius: radius, padding: space.md, borderWidth: 1, borderColor: "#f5c27a" },
-  pausedText: { fontSize: 14, lineHeight: 19, color: "#8a5300", fontWeight: "600" },
+  paused: { backgroundColor: colors.warnBg, borderRadius: radius, padding: space.md, borderWidth: 1, borderColor: colors.warnBorder },
+  pausedText: { fontSize: 14, lineHeight: 19, color: colors.warnText, fontWeight: "600" },
   bar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#d6e6f5", // kartalardan (oq) to'qroq ko'k — filtr qatori e'lon bilan adashmaydi
+    backgroundColor: colors.barBg, // kartalardan to'qroq ko'k — filtr qatori e'lon bilan adashmaydi
     borderWidth: 1,
-    borderColor: "#a9c9e8",
+    borderColor: colors.barBorder,
     borderRadius: radius,
     paddingLeft: space.lg,
   },
-  barText: { flex: 1, fontSize: 14, color: "#0d3c66", fontWeight: "600" },
+  barText: { flex: 1, fontSize: 14, color: colors.barText, fontWeight: "600" },
   bold: { fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
-});
+  }),
+);

@@ -28,6 +28,7 @@ export default function AppLayout() {
             title: "Dastur haqida",
             headerLeft: () => <MenuButton />,
             headerStyle: { backgroundColor: colors.card },
+            headerTintColor: colors.text,
             headerTitleStyle: { fontWeight: "700" },
             headerShadowVisible: false,
           }}

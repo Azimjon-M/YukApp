@@ -5,7 +5,7 @@ import { memo } from "react";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { cargoText, formatContactPhone, phoneText, placeText, priceText, senderLink, truckPlaceText, truckVehicleText, vehicleText } from "@yuk/shared";
-import { colors, radius, space } from "../theme.js";
+import { colors, radius, space, themed } from "../theme.js";
 import { toast } from "../toast.js";
 
 // "+998 90 123-45-67" → "tel:+998901234567" (qo'ng'iroq oynasiga faqat raqamlar)
@@ -163,7 +163,8 @@ export const TruckCard = memo(function TruckCard({ item }) {
   );
 });
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   card: { backgroundColor: colors.card, borderRadius: radius, padding: space.lg, gap: 6 },
   route: { fontSize: 17, fontWeight: "700", color: colors.text, marginBottom: 2 },
   arrow: { color: colors.accent },
@@ -200,4 +201,5 @@ const styles = StyleSheet.create({
   source: { color: colors.hint, fontSize: 14, fontWeight: "400" },
   meta: { fontSize: 13, color: colors.hint },
   owner: { color: colors.ok, fontWeight: "600" },
-});
+  }),
+);

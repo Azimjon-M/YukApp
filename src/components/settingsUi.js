@@ -1,7 +1,7 @@
 // Sozlamalar ekranlari («E'lon» va «Hisob») uchun umumiy qismlar: bo'lim, qator, xato oynasi, amal bajaruvchi.
 import { useCallback, useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
-import { colors, space } from "../theme.js";
+import { colors, space, themed } from "../theme.js";
 import { Card } from "../ui.js";
 
 export function Section({ title, children }) {
@@ -62,14 +62,17 @@ export function usePullRefresh(refreshMe) {
   return { refreshing, onRefresh };
 }
 
-export const settingsStyles = StyleSheet.create({
+export const settingsStyles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space.md, paddingBottom: space.xl, gap: space.lg },
   rowText: { flex: 1, fontSize: 15, lineHeight: 21, color: colors.text },
   footer: { textAlign: "center" },
-});
+  }),
+);
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   section: { gap: 6 },
   sectionTitle: { fontSize: 14, fontWeight: "700", color: colors.accent, marginLeft: space.sm, textTransform: "uppercase" },
   sectionBody: { gap: space.md },
@@ -77,4 +80,5 @@ const styles = StyleSheet.create({
   rowIcon: { fontSize: 16, width: 24 },
   rowText: settingsStyles.rowText,
   rowLabel: { color: colors.hint },
-});
+  }),
+);

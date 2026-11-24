@@ -21,7 +21,7 @@ import {
   toggleTruck,
 } from "../../../filterForm.js";
 import { useSession } from "../../../session.js";
-import { colors, radius, space } from "../../../theme.js";
+import { colors, radius, space, themed } from "../../../theme.js";
 import { toast } from "../../../toast.js";
 import { Button, CheckRow, Chip, Hint } from "../../../ui.js";
 
@@ -131,7 +131,8 @@ export default function FilterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space.md, gap: space.md, paddingBottom: space.xl },
   lead: { backgroundColor: colors.accent, borderRadius: radius + 4, padding: space.lg, gap: 4 },
@@ -147,4 +148,5 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.line,
   },
-});
+  }),
+);

@@ -6,7 +6,7 @@ import { feedLabel, profileRows, routeChosen, routeLabel, sortedReady } from "@y
 import { setActive } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { useSession } from "../../../session.js";
-import { colors, space } from "../../../theme.js";
+import { colors, space, themed } from "../../../theme.js";
 import { Button, Hint } from "../../../ui.js";
 
 export default function AdSettingsScreen() {
@@ -76,6 +76,8 @@ export default function AdSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", gap: space.md },
-});
+  }),
+);

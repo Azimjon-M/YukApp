@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { Image, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
-import { colors, radius, space } from "../../theme.js";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, radius, space, themed } from "../../theme.js";
 
 const AUTHOR = { name: "Meliboev Azimjon", telegram: "gt_rushsher" };
 
@@ -17,11 +18,12 @@ const mono = Platform.select({ ios: "Menlo", default: "monospace" });
 const groups = (number) => number.replace(/(\d{4})(?=\d)/g, "$1 ");
 
 export default function AboutScreen() {
+  const insets = useSafeAreaInsets(); // pastdagi tizim tugmalari (back/home) ostiga kirmasin
   const version = Constants.expoConfig?.version ?? "";
   const openTelegram = () => Linking.openURL(`https://t.me/${AUTHOR.telegram}`).catch(() => {});
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.page} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.xl * 1.5 }]}>
       {/* Ilova */}
       <View style={styles.hero}>
         <View style={styles.heroBubble1} />
@@ -131,7 +133,8 @@ function BankCard({ card }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space.md, paddingBottom: space.xl * 1.5, gap: space.md },
   pressed: { opacity: 0.7 },
@@ -238,4 +241,5 @@ const styles = StyleSheet.create({
   copyTextOn: { color: colors.ok },
 
   footer: { fontSize: 13, color: colors.hint, textAlign: "center", marginTop: space.sm },
-});
+  }),
+);

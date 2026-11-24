@@ -7,7 +7,8 @@ import { router } from "expo-router";
 import { ROUTE_ANY, routeSide } from "@yuk/shared";
 import { getRoute, saveRoute } from "../api.js";
 import { useSession } from "../session.js";
-import { colors, radius, space } from "../theme.js";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { colors, radius, space, themed } from "../theme.js";
 import { Button, Hint, Notice, Spinner } from "../ui.js";
 
 const HOURS = 24;
@@ -32,6 +33,7 @@ function AreaButton({ label, count, on, disabled, onPress, wide = false }) {
 }
 
 export default function RouteScreen() {
+  const insets = useSafeAreaInsets(); // pastdagi tizim tugmalari (back/home) ostiga kirmasin
   const { me, setMe } = useSession();
   const profile = me?.profile;
   const [from, setFrom] = useState(null); // null — «Qayerdan?» qadami; { id, label } — «Qayerga?»
@@ -79,7 +81,7 @@ export default function RouteScreen() {
   const areas = ready ? state.data.areas : [];
 
   return (
-    <ScrollView style={styles.page} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.page} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + space.lg }]}>
       {step === "from" ? (
         <>
           <Text style={styles.title}>📍 Qayerdan yuk olasiz?</Text>
@@ -136,7 +138,8 @@ export default function RouteScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { padding: space.lg, gap: space.md },
   title: { fontSize: 20, fontWeight: "800", color: colors.text },
@@ -161,4 +164,5 @@ const styles = StyleSheet.create({
   areaText: { fontSize: 15, fontWeight: "600", color: colors.text },
   areaTextOn: { color: colors.accent },
   count: { fontSize: 13, color: colors.hint, marginTop: 2 },
-});
+  }),
+);

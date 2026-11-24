@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ROLES } from "@yuk/shared";
 import { badgeText, useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
-import { colors, space } from "../theme.js";
+import { colors, space, themed } from "../theme.js";
 
 const MenuContext = createContext({ open: () => {}, close: () => {} });
 export const useSideMenu = () => useContext(MenuContext);
@@ -173,8 +173,9 @@ export function MenuButton() {
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { backgroundColor: "rgba(0,0,0,0.45)" },
+const styles = themed(() =>
+  StyleSheet.create({
+  backdrop: { backgroundColor: colors.backdrop },
   panel: {
     position: "absolute",
     top: 0,
@@ -234,4 +235,5 @@ const styles = StyleSheet.create({
   menuButton: { paddingHorizontal: space.lg, paddingVertical: space.sm, gap: 4, justifyContent: "center" },
   burgerLine: { width: 22, height: 2.5, borderRadius: 2, backgroundColor: colors.text },
   burgerShort: { width: 15 },
-});
+  }),
+);

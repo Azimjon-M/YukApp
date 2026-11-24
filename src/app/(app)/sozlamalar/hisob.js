@@ -6,7 +6,7 @@ import { PLANS, ROLES, formatContactPhone } from "@yuk/shared";
 import { API_URL, PROD_API_URL, deleteMe, signOut } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { useSession } from "../../../session.js";
-import { colors } from "../../../theme.js";
+import { colors, themed } from "../../../theme.js";
 import { Button, Hint } from "../../../ui.js";
 
 export default function AccountSettingsScreen() {
@@ -69,6 +69,8 @@ export default function AccountSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
-});
+  }),
+);

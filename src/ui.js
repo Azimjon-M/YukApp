@@ -1,7 +1,7 @@
 // Kichik umumiy qismlar: tugma, xabar oynasi, tanlov (segment), karta. Web'dagi ui.jsx ning ilova ko'rinishi.
 // React Native'da <div>/<button> yo'q: View — quti, Text — matn (matn faqat <Text> ichida bo'ladi), Pressable — bosiladigan.
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { colors, radius, space } from "./theme.js";
+import { colors, radius, space, themed } from "./theme.js";
 
 // kind: "primary" (ko'k) | "secondary" (oq, ramkali) | "danger" (qizil matn) | "link" (faqat matn)
 export function Button({ title, onPress, kind = "primary", disabled = false, busy = false, style }) {
@@ -121,7 +121,8 @@ export function CheckRow({ title, sub, on, onPress, radio = false, disabled = fa
 
 export const Hint = ({ children, style }) => <Text style={[styles.hint, style]}>{children}</Text>;
 
-export const styles = StyleSheet.create({
+export const styles = themed(() =>
+  StyleSheet.create({
   button: {
     minHeight: 48,
     borderRadius: radius,
@@ -184,4 +185,5 @@ export const styles = StyleSheet.create({
   checkTitle: { fontSize: 16, color: colors.text, fontWeight: "500" },
   checkTitleOn: { fontWeight: "700" },
   checkSub: { fontSize: 13, color: colors.hint },
-});
+  }),
+);

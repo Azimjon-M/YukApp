@@ -7,7 +7,7 @@ import { router } from "expo-router";
 import { ROLES, ROLE_IDS } from "@yuk/shared";
 import { setRole } from "../api.js";
 import { useSession } from "../session.js";
-import { colors, radius, space } from "../theme.js";
+import { colors, radius, space, themed } from "../theme.js";
 import { Button, Hint } from "../ui.js";
 
 export default function RoleScreen() {
@@ -71,7 +71,8 @@ export default function RoleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { flexGrow: 1, justifyContent: "center", padding: space.lg, gap: space.md },
   title: { fontSize: 22, fontWeight: "800", color: colors.text },
@@ -92,4 +93,5 @@ const styles = StyleSheet.create({
   roleText: { flex: 1, gap: 2 },
   roleName: { fontSize: 17, fontWeight: "700", color: colors.text },
   roleSub: { fontSize: 14, lineHeight: 19, color: colors.hint },
-});
+  }),
+);

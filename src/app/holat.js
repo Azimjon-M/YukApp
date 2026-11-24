@@ -3,7 +3,7 @@ import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BLOCKED_TEXT } from "@yuk/shared";
 import { useSession } from "../session.js";
-import { colors, space } from "../theme.js";
+import { colors, space, themed } from "../theme.js";
 import { Button, Notice, Spinner } from "../ui.js";
 
 export default function StatusScreen() {
@@ -33,7 +33,9 @@ export default function StatusScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, justifyContent: "center", padding: space.lg },
-});
+  }),
+);

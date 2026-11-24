@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { requestLoginCode, verifyLoginCode } from "../api.js";
 import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
 import { useSession } from "../session.js";
-import { colors, radius, space } from "../theme.js";
+import { colors, radius, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
 
 // Server /pub/config da required bermasa (eski server) — shu ro'yxat. Bot REQUIRED_CHATS bilan bir xil
@@ -195,7 +195,8 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { flexGrow: 1, justifyContent: "center", padding: space.lg, gap: space.lg },
   brand: { alignItems: "center", gap: space.sm },
@@ -220,4 +221,5 @@ const styles = StyleSheet.create({
   },
   codeInput: { fontSize: 26, letterSpacing: 10, textAlign: "center", fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
-});
+  }),
+);

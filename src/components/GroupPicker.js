@@ -6,7 +6,7 @@ import { StyleSheet, Text, TextInput, View } from "react-native";
 import { foldText } from "@yuk/shared";
 import { getFeedSources } from "../api.js";
 import { hasSource } from "../filterForm.js";
-import { colors, radius, space } from "../theme.js";
+import { colors, radius, space, themed } from "../theme.js";
 import { Button, CheckRow, Hint, Segmented, Spinner } from "../ui.js";
 
 const PAGE = 20;
@@ -123,7 +123,8 @@ export function GroupPicker({ form, onToggle, onToggleAll }) {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() =>
+  StyleSheet.create({
   gap: { gap: space.sm },
   count: { fontSize: 14, fontWeight: "700", color: colors.accent },
   search: {
@@ -134,4 +135,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
   },
-});
+  }),
+);
