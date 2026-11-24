@@ -1,5 +1,5 @@
 // Lenta: yuklar (haydovchiga) yoki bo'sh mashinalar (yuk beruvchiga), eng yangisi tepada. Mini App'dagi
-// «📋 Yuklar» / «🚚 Mashinalar» bilan bir xil (apps/web/src/LoadsPage.jsx): «Menga mos» yoki «Hammasi», 6/24/72 soat.
+// «📋 Yuklar» / «🚚 Mashinalar» bilan bir xil (apps/web/src/LoadsPage.jsx): «Menga mos» yoki «Hammasi», oxirgi 24 soat.
 // Haydovchining «Menga mos» i — botdagi «🎛 Filtr» bo'yicha (guruhlar, mashina turi, qayerdan): bot yuboradigan e'lonlar.
 // Filtr hali tanlanmagan bo'lsa — «🎛 Filtr» bo'limiga o'tkaziladi. Eski «🎯 Saralangan» rejimda — yo'nalish bo'yicha.
 // Ro'yxat ochiq turganda har daqiqada o'zi yangilanadi; pastga tortsa — darhol; oxiriga yetsa — yana 30 tasi.
@@ -22,11 +22,7 @@ const VIEWS = [
   { id: "mine", label: "Menga mos" },
   { id: "all", label: "Hammasi" },
 ];
-const HOURS = [
-  { id: 6, label: "6 soat" },
-  { id: 24, label: "24 soat" },
-  { id: 72, label: "3 kun" },
-];
+const HOURS = 24; // oxirgi 24 soat (muddat tanlash olib tashlandi — 0.5.0)
 
 const KINDS = {
   yuk: { fetch: getLoads, Card: LoadCard, many: "yuk" },
@@ -42,7 +38,7 @@ export function LoadsFeed() {
   const profile = me.profile;
 
   const [view, setView] = useState("mine");
-  const [hours, setHours] = useState(24);
+  const hours = HOURS;
   // Haydovchi filtrni hali tanlamagan — «Menga mos» hisoblanmaydi, «🎛 Filtr» ga o'tkaziladi
   const noFilter = driver && view === "mine" && !profile;
   // Eski «🎯 Saralangan» rejim: «Menga mos» yo'nalishsiz chiqmaydi
@@ -53,7 +49,6 @@ export function LoadsFeed() {
   const profileKey = JSON.stringify(profile ?? null);
 
   const [state, setState] = useState({ items: [], total: 0, loading: true, refreshing: false, more: false, error: null });
-  const [now, setNow] = useState(() => Date.now());
   const shown = useRef(PAGE); // nechta ko'rsatilyapti — yangilashda ham shuncha qoladi
   const request = useRef(0); // eng oxirgi so'rov raqami: eski javob yangisini bosib ketmasin
   const focused = useRef(false);
@@ -73,7 +68,6 @@ export function LoadsFeed() {
         const data = await k.fetch({ view, hours, limit: Math.min(count, MAX) });
         if (id !== request.current) return;
         shown.current = count;
-        setNow(Date.now());
         setState({ items: data.items, total: data.total, loading: false, refreshing: false, more: false, error: null });
         if (view === "mine" && focused.current) markSeen(data.items);
       } catch (error) {
@@ -159,7 +153,6 @@ export function LoadsFeed() {
           <Button title="O'zgartirish" kind="link" onPress={() => router.push("/yonalish")} />
         </View>
       ) : null}
-      {!idle ? <Segmented options={HOURS} value={hours} onChange={setHours} /> : null}
       {!idle && !loading && !error ? <Hint>{total ? `${total} ta ${k.many}` : null}</Hint> : null}
       {error && items.length ? <Text style={styles.error}>⚠️ {error.message}</Text> : null}
     </View>
@@ -193,7 +186,7 @@ export function LoadsFeed() {
       contentContainerStyle={styles.list}
       data={loading ? [] : items}
       keyExtractor={(item) => String(item.id)}
-      renderItem={({ item }) => <k.Card item={item} now={now} />}
+      renderItem={({ item }) => <k.Card item={item} />}
       ListHeaderComponent={header}
       ListEmptyComponent={
         loading ? (
@@ -205,8 +198,8 @@ export function LoadsFeed() {
         ) : (
           <Notice title={`Hozircha ${k.many} yo'q`}>
             {view === "mine"
-              ? `Tanlangan muddatda filtringizga mos ${k.many} chiqmadi. Muddatni uzaytiring yoki filtrni kengaytiring.`
-              : "Tanlangan muddatda e'lon chiqmadi."}
+              ? `Oxirgi 24 soatda filtringizga mos ${k.many} chiqmadi. Filtrni kengaytirib ko'ring.`
+              : "Oxirgi 24 soatda e'lon chiqmadi."}
           </Notice>
         )
       }
