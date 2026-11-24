@@ -39,3 +39,9 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# imzolash kaliti va paroli (hech qachon git'ga emas)
+/keys/
+
+# yig'ilgan APK fayllar (npm run apk)
+/apk/

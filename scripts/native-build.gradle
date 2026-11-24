@@ -1,0 +1,31 @@
+// Gradle init-skript: C++ (native) qismlarini Windows'da yig'ish uchun ikki tuzatish.
+// scripts/build-apk.mjs uni `--init-script` bilan beradi — android/ papkasiga tegmaymiz (u har safar qayta yasaladi).
+//
+// 1) Qisqa ish papkasi (YUK_CXX_DIR). Windows'da yo'l 260 belgidan oshsa, eski ninja papka yarata olmaydi:
+//    «ninja: error: mkdir(...): No such file or directory» (2026-11-24, react-native-reanimated).
+//    Oraliq fayllar odatda node_modules\<modul>\android\.cxx\RelWithDebInfo\<hash>\<abi>\CMakeFiles\... ichida
+//    yotadi va loyiha yo'li ikki marta takrorlanadi. Shuning uchun har modulning CMake papkasi <YUK_CXX_DIR>\<nom>.
+//    (Qolgan uzun yo'llarni ninja 1.12+ ko'taradi — build-apk.mjs uni tekshiradi.)
+//
+// 2) Bir vaqtda nechta C++ fayl kompilyatsiya qilinadi (YUK_CXX_JOBS). ninja odatda «yadro soni + 2» ta
+//    clang'ni birdan ishga tushiradi (20 yadro → 22 ta, har biri ~0,5 GB), Gradle esa bir nechta modulni
+//    parallel yig'adi → «LLVM ERROR: out of memory» (2026-11-24, 16 GB RAM). CMake job pool bilan cheklaymiz.
+def base = System.getenv("YUK_CXX_DIR")
+def jobs = System.getenv("YUK_CXX_JOBS")
+
+allprojects { p ->
+  def tune = {
+    if (base) {
+      // "react-native-reanimated" → "reanimated": yo'l yana ham qisqaroq bo'lsin
+      p.android.externalNativeBuild.cmake.buildStagingDirectory = new File(base, p.name.replaceFirst(/^react-native-/, ""))
+    }
+    if (jobs) {
+      p.android.defaultConfig.externalNativeBuild.cmake.arguments(
+        "-DCMAKE_JOB_POOLS=compile=${jobs}",
+        "-DCMAKE_JOB_POOL_COMPILE=compile",
+      )
+    }
+  }
+  p.plugins.withId("com.android.library", tune)
+  p.plugins.withId("com.android.application", tune)
+}

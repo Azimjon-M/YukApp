@@ -13,11 +13,11 @@
     "android": {
       "package": "uz.gtpro.yukekspert",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#2481cc",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
