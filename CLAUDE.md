@@ -27,10 +27,26 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
 - **Navigation (0.3.0, 2026-11-24, his «Saidbarli bo'lsin ammo pastdagi panel ham bo'lsin»):** sidebar = custom
   `src/components/SideMenu.js` (Modal + Animated, ☰ `MenuButton` in every header) — deliberately NOT expo-router/drawer
   (needs reanimated + gesture-handler native builds). Sidebar picks a section, each section has its own bottom tabs:
-  `(app)/(asosiy)` «Menga mos» (index) · «Hammasi» (both = `components/LoadsFeed.js` with `view` prop; the old Segmented
-  mine/all is gone) · `(app)/sozlamalar` «E'lon» (index: bot active, transport/filter, route) · «Hisob» (hisob.js:
+  `(app)/(asosiy)` (0.4.0) «📋 Yuklar» (index = `components/LoadsFeed.js`, Segmented Menga mos/Hammasi inside) · «🎛 Filtr»
+  (filtr.js, driver only, `href: null` for shippers) · «⏸ Pauza / ▶️ Davom etish» (pauza.js is a dummy route; the tab's
+  `tabBarButton` toggles `PATCH /pub/me {active}`) · `(app)/sozlamalar` «E'lon» (index: bot active, filter summary →
+  /filtr, route) · «Hisob» (hisob.js:
   account, role, sign out, delete) · `(app)/haqida` «Dastur haqida»: author Meliboev Azimjon (t.me/gt_rushsher) and his
   support cards Visa 4231…6273 / Humo 9860…4705 (he asked to show them publicly; tap = copy via expo-clipboard).
+- **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
+  huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
+  «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET
+  /pub/me/feed-sources, open/closed tabs, search, select all, 20 per page) + `TRUCK_FILTERS` chips + `REGIONS` chips; pure
+  logic `src/filterForm.js` (tested; guruhlarim with 0 groups → saved as tezkor like the bot) → `PUT /pub/me/profile
+  {profile: {...old, feed}, role: "haydovchi"}` → back to Yuklar. Driver without a profile on «Menga mos» → redirected
+  to /filtr. **Server side (YukPlatform `20e6dac`, made from this server):** `/pub/loads?view=mine` for tezkor/guruhlarim
+  drivers used to answer 409 `feed`; now it filters with shared `rawLoadWanted` (group + region + truck, same as bot
+  pipeline) — needs the production restart (`supervisorctl restart yuk`) to be live. Badge: `src/newLoads.js`
+  `NewLoadsProvider` (in `(app)/_layout.js`) polls view=mine limit 50 every 30 s while the app is active, counts ids >
+  last seen (stored via `storage.js` `saveValue` key `yuk_seen_<kind>`; first run = no badge), off when paused;
+  `markSeen` from LoadsFeed when «Menga mos» is shown and focused; red `tabBarBadge` + sidebar pill (`badgeText`, «50+»).
+  No push notifications (app closed = nothing). `src/toast.js` = ToastAndroid. Don't `pkill -f`/`pgrep -f` a pattern
+  that is also in the same bash command — it kills the tool's own shell (exit 144).
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

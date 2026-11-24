@@ -28,3 +28,22 @@ export async function saveToken(token) {
     // Yozilmadi — token shu ochilishda xotirada yashaydi (session.js), keyingi ochilishda qayta kiradi
   }
 }
+
+// Kichik sozlamalar (masalan, oxirgi ko'rilgan yuk raqami — «🔴 yangi yuklar» belgisi uchun). Kalit: harf, raqam, _ . -
+export async function loadValue(key) {
+  try {
+    if (web) return globalThis.localStorage?.getItem(key) ?? null;
+    return await SecureStore.getItemAsync(key);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveValue(key, value) {
+  try {
+    if (web) globalThis.localStorage?.setItem(key, String(value));
+    else await SecureStore.setItemAsync(key, String(value));
+  } catch {
+    // yozilmadi — keyingi ochilishda belgi biroz ko'proq ko'rsatishi mumkin, xolos
+  }
+}

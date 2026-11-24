@@ -75,6 +75,50 @@ export function Segmented({ options, value, onChange, disabled = false }) {
   );
 }
 
+// Belgilanadigan tugmacha (bir nechtasini tanlash): ✓ bilan ko'k ramka
+export function Chip({ label, on, onPress, disabled = false }) {
+  return (
+    <Pressable
+      role="checkbox"
+      aria-checked={on}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.chip, on && styles.chipOn, pressed && styles.pressed, disabled && styles.disabled]}
+    >
+      <Text style={[styles.chipText, on && styles.chipTextOn]} numberOfLines={1}>
+        {on ? "✓ " : ""}
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+// Ro'yxat qatori: chapda belgi (☑ / ○), matn va ostida izoh. radio — bittasini tanlash (doira)
+export function CheckRow({ title, sub, on, onPress, radio = false, disabled = false, right }) {
+  return (
+    <Pressable
+      role={radio ? "radio" : "checkbox"}
+      aria-checked={on}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.checkRow, on && styles.checkRowOn, pressed && styles.pressed, disabled && styles.disabled]}
+    >
+      <View style={[radio ? styles.radio : styles.box, on && styles.boxOn]}>
+        {on ? radio ? <View style={styles.radioDot} /> : <Text style={styles.tick}>✓</Text> : null}
+      </View>
+      <View style={styles.checkText}>
+        <Text style={[styles.checkTitle, on && styles.checkTitleOn]} numberOfLines={2}>
+          {title}
+        </Text>
+        {sub ? <Text style={styles.checkSub} numberOfLines={2}>{sub}</Text> : null}
+      </View>
+      {right ?? null}
+    </Pressable>
+  );
+}
+
 export const Hint = ({ children, style }) => <Text style={[styles.hint, style]}>{children}</Text>;
 
 export const styles = StyleSheet.create({
@@ -109,4 +153,35 @@ export const styles = StyleSheet.create({
   segmentOn: { backgroundColor: colors.card },
   segmentText: { fontSize: 14, color: colors.text },
   segmentTextOn: { fontWeight: "700", color: colors.accent },
+  chip: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: colors.line,
+    backgroundColor: colors.card,
+  },
+  chipOn: { borderColor: colors.accent, backgroundColor: colors.soft },
+  chipText: { fontSize: 15, color: colors.text },
+  chipTextOn: { color: colors.accent, fontWeight: "700" },
+  checkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    paddingVertical: space.md,
+    paddingHorizontal: space.md,
+    borderRadius: radius,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  checkRowOn: { backgroundColor: colors.soft, borderColor: colors.accent },
+  box: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: colors.hint, alignItems: "center", justifyContent: "center" },
+  radio: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: colors.hint, alignItems: "center", justifyContent: "center" },
+  boxOn: { borderColor: colors.accent, backgroundColor: colors.accent },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accentText },
+  tick: { color: colors.accentText, fontSize: 15, fontWeight: "800", marginTop: -1 },
+  checkText: { flex: 1, gap: 2 },
+  checkTitle: { fontSize: 16, color: colors.text, fontWeight: "500" },
+  checkTitleOn: { fontWeight: "700" },
+  checkSub: { fontSize: 13, color: colors.hint },
 });

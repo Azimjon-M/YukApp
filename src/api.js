@@ -143,3 +143,9 @@ export const getTrucks = (params = {}) => request("GET", `/pub/trucks?${query(pa
 export const getRoute = (params = {}) => request("GET", `/pub/me/route?${query(params)}`);
 // "*" = istalgan joy → yangilangan me
 export const saveRoute = (from, to) => request("PUT", "/pub/me/route", { body: { from, to } });
+
+// «📌 Mening guruhlarim» uchun tanlasa bo'ladigan guruhlar → { sources: [{ name, title, perDay, closed, locked, mine }],
+// chosen, max, pro } (eng faoli birinchi; oddiy foydalanuvchiga yopiq guruhlar kelmaydi)
+export const getFeedSources = () => request("GET", "/pub/me/feed-sources");
+// Sozlamalarni saqlash (botdagi «💾 Saqlash» bilan bir qoida) → yangilangan me. 400 { error, field }
+export const saveProfile = (profile, role) => request("PUT", "/pub/me/profile", { body: { profile, role } });

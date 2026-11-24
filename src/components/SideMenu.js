@@ -10,6 +10,7 @@ import { router, usePathname } from "expo-router";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ROLES } from "@yuk/shared";
+import { badgeText, useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, space } from "../theme.js";
 
@@ -60,6 +61,7 @@ export function SideMenuProvider({ children }) {
 function MenuPanel({ progress, close }) {
   const { me, botUsername } = useSession();
   const pathname = usePathname();
+  const { count } = useNewLoads();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const panelWidth = Math.min(320, Math.round(width * 0.82));
@@ -68,15 +70,16 @@ function MenuPanel({ progress, close }) {
   const role = ROLES[me?.role];
 
   const items = [
-    { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/" },
+    { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) },
     { id: "sozlamalar", icon: "⚙️", label: "Sozlamalar", href: "/sozlamalar" },
     { id: "haqida", icon: "ℹ️", label: "Dastur haqida", href: "/haqida" },
   ];
 
-  // Avval panel yopiladi, keyin bo'lim almashadi — ikkalasi bir vaqtda bo'lsa animatsiya qotib qoladi
+  // Avval panel yopiladi, keyin bo'lim almashadi — ikkalasi bir vaqtda bo'lsa animatsiya qotib qoladi.
+  // «Yuklar» doim ro'yxatning o'ziga olib boradi (Filtr ochiq bo'lsa ham)
   const go = (href, id) => {
     close();
-    if (id !== current) router.navigate(href);
+    if (id !== current || id === "asosiy") router.navigate(href);
   };
   const openBot = () => {
     close();
@@ -127,6 +130,11 @@ function MenuPanel({ progress, close }) {
               >
                 <Text style={styles.itemIcon}>{item.icon}</Text>
                 <Text style={[styles.itemText, on && styles.itemTextOn]}>{item.label}</Text>
+                {item.badge ? (
+                  <View style={styles.badge2}>
+                    <Text style={styles.badge2Text}>{item.badge}</Text>
+                  </View>
+                ) : null}
               </Pressable>
             );
           })}
@@ -217,6 +225,9 @@ const styles = StyleSheet.create({
   itemIcon: { fontSize: 20, width: 28, textAlign: "center" },
   itemText: { fontSize: 16, fontWeight: "500", color: colors.text },
   itemTextOn: { fontWeight: "700", color: colors.accent },
+  // Yangi yuklar soni — qizil doira (pastki paneldagi belgi bilan bir xil)
+  badge2: { marginLeft: "auto", minWidth: 24, height: 24, borderRadius: 12, paddingHorizontal: 7, backgroundColor: colors.error, alignItems: "center", justifyContent: "center" },
+  badge2Text: { color: "#fff", fontSize: 13, fontWeight: "800" },
   divider: { height: 1, backgroundColor: colors.line, marginVertical: space.sm, marginHorizontal: space.lg },
   pressed: { opacity: 0.6 },
   footer: { fontSize: 13, color: colors.hint, textAlign: "center" },

@@ -1,8 +1,8 @@
-// Sozlamalar → «📢 E'lon sozlamalari»: bot yuborishi (faol / pauza), transport yoki kerakli mashina, yo'nalish.
-// Transport / filtrni o'zgartirish formasi hozircha botda («⚙️ Sozlamalar») — ilovaga keyingi bosqichda qo'shiladi.
+// Sozlamalar → «📢 E'lon sozlamalari»: bot yuborishi (faol / pauza), haydovchiga — filtr (o'zgartirish «🎛 Filtr» da),
+// yuk beruvchiga — kerakli mashina (o'zgartirish hozircha botda), eski «🎯 Saralangan» rejimda — yo'nalish.
 import { Linking, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
-import { profileRows, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
+import { feedLabel, profileRows, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
 import { setActive } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { useSession } from "../../../session.js";
@@ -42,18 +42,29 @@ export default function AdSettingsScreen() {
             trackColor={{ true: colors.accent }}
           />
         </View>
-        {!canToggle ? <Hint>Yoqish uchun avval transportingizni kiriting.</Hint> : null}
+        {!canToggle ? <Hint>Yoqish uchun avval «🎛 Filtr» ni saqlang.</Hint> : null}
       </Section>
 
-      <Section title={driver ? "🚚 Transport" : "📦 Kerakli mashina"}>
-        {rows.length ? (
-          rows.map((row) => <Row key={row.id} icon={row.icon} label={row.label} value={row.value} />)
-        ) : (
-          <Hint>{driver ? "Transportingiz kiritilmagan." : "Kiritilmagan — bo'sh mashinalarning hammasi ko'rsatiladi."}</Hint>
-        )}
-        <Button title="✏️ Botda o'zgartirish" kind="secondary" onPress={openBot} />
-        <Hint>O'zgartirish formasi ilovaga keyingi yangilanishda qo'shiladi. Hozircha botdagi «⚙️ Sozlamalar» tugmasi.</Hint>
-      </Section>
+      {driver ? (
+        <Section title="🎛 Filtr — qaysi e'lonlar kelsin">
+          {profile ? (
+            <Text style={settingsStyles.rowText}>{feedLabel(profile)}</Text>
+          ) : (
+            <Hint>Filtr hali tanlanmagan.</Hint>
+          )}
+          <Button title="🎛 Filtrni o'zgartirish" kind="secondary" onPress={() => router.navigate("/filtr")} />
+        </Section>
+      ) : (
+        <Section title="📦 Kerakli mashina">
+          {rows.length ? (
+            rows.map((row) => <Row key={row.id} icon={row.icon} label={row.label} value={row.value} />)
+          ) : (
+            <Hint>Kiritilmagan — bo'sh mashinalarning hammasi ko'rsatiladi.</Hint>
+          )}
+          <Button title="✏️ Botda o'zgartirish" kind="secondary" onPress={openBot} />
+          <Hint>O'zgartirish formasi ilovaga keyingi yangilanishda qo'shiladi. Hozircha botdagi «⚙️ Sozlamalar» tugmasi.</Hint>
+        </Section>
+      )}
 
       {driver && profile && sortedReady(profile) ? (
         <Section title="🧭 Yo'nalish">

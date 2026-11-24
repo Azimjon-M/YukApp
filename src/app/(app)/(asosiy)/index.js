@@ -1,6 +1,6 @@
-// «Menga mos»: profil va yo'nalish bo'yicha saralangan lenta
+// «📋 Yuklar» (yuk beruvchida «🚚 Mashinalar»): filtrga mos e'lonlar — components/LoadsFeed.js
 import { LoadsFeed } from "../../../components/LoadsFeed.js";
 
-export default function MineScreen() {
-  return <LoadsFeed view="mine" />;
+export default function LoadsScreen() {
+  return <LoadsFeed />;
 }
