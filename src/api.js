@@ -140,24 +140,34 @@ export const signOut = () => request("POST", "/pub/me/logout");
 // Hisobni o'chirish (botdagi /ochirish → «Hammasini o'chirish» bilan bir xil)
 export const deleteMe = () => request("DELETE", "/pub/me");
 
-// «📝 E'lon berish» chati (yuk beruvchi; server loadChat.js — botdagi «📦 Yuk berish» bilan bir qoida).
-// view = { stage: "confirm" | "phone" | null, text, cards?: [[qator…]], phones?: [{ phone, label }] }
-export const getLoadChat = () => request("GET", "/pub/me/load-chat"); // → { intro, view, used, limit, posts }
-// Matnni tushunish AI'ga ketishi mumkin (20 s gacha) — qayta yuborilmaydi (ikki marta qoralama bo'lmasin)
+// «📝 E'lon berish» chati (server loadChat.js + public.js; suhbat serverda saqlanadi — boshqa telefondan ham ko'rinadi).
+// Xabar: { id, from: "me" | "bot", text, audio, durationMs, transcript?, cards?, stage?, phones?, active, postId?, at }.
+// O'zgartiruvchi so'rovlar → { messages: [yangilari], used, limit }
+export const getLoadChat = (after = 0) => request("GET", `/pub/me/load-chat${after ? `?after=${after}` : ""}`); // + intro
+// Matnni tushunish AI'ga ketishi mumkin — qayta yuborilmaydi (ikki marta xabar bo'lmasin), kutish 60 s
 export const sendLoadText = (text) => request("POST", "/pub/me/load-chat", { body: { text }, retry: false, timeout: 60_000 });
 export const pickLoadPhone = (phone) => request("POST", "/pub/me/load-chat/phone", { body: { phone }, retry: false });
-export const confirmLoad = () => request("POST", "/pub/me/load-chat/send", { retry: false }); // → { ok, id, text }
-// Ovozli e'lon (LoadChat.js fayl yuklaydi — fetch emas, expo-file-system upload): manzil, sarlavhalar va javobni o'qish shu yerda,
+export const confirmLoad = () => request("POST", "/pub/me/load-chat/send", { retry: false });
+export const cancelLoad = () => request("DELETE", "/pub/me/load-chat", { retry: false });
+
+// Ovoz (LoadChat.js fayl yuklaydi — fetch emas, expo-file-system upload) va tinglash: manzil va sarlavhalar shu yerda,
 // api.js qoidalari (token, X-App-Version, 401/403/426) bir joyda qolsin
-export const LOAD_VOICE_PATH = "/pub/me/load-chat/voice";
-export function uploadHeaders(contentType) {
-  const headers = { accept: "application/json", "content-type": contentType };
+function authHeaders() {
+  const headers = {};
   const token = settings.getToken();
   if (token) headers.authorization = `Bearer ${token}`;
   if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
-  return { url: `${settings.baseUrl}${LOAD_VOICE_PATH}`, headers };
+  return headers;
 }
-// upload javobi { status, body } → { transcript, view } yoki ApiError
+export function voiceUpload(durationMs) {
+  return {
+    url: `${settings.baseUrl}/pub/me/load-chat/voice`,
+    headers: { ...authHeaders(), accept: "application/json", "content-type": "audio/aac", "x-duration-ms": String(Math.round(durationMs)) },
+  };
+}
+// Ovozli xabarni tinglash: expo-audio manbasi (sarlavha bilan — fayl faqat egasiga beriladi)
+export const voiceSource = (id) => ({ uri: `${settings.baseUrl}/pub/me/load-chat/audio/${id}`, headers: authHeaders() });
+// upload javobi { status, body } → JSON yoki ApiError
 export function readUpload({ status, body }) {
   let json = null;
   try {
@@ -171,8 +181,6 @@ export function readUpload({ status, body }) {
   if (status === 426 && json?.code === "update") settings.onUpdate();
   throw new ApiError(json?.error ?? "Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status, code: json?.code ?? (json ? null : "offline") });
 }
-export const cancelLoad = () => request("DELETE", "/pub/me/load-chat");
-export const getLoadResult = (id) => request("GET", `/pub/me/load-chat/posts/${id}`); // → { done, ok, text }
 
 // view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
 export const getLoads = (params = {}) => request("GET", `/pub/loads?${query(params)}`);

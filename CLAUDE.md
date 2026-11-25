@@ -55,6 +55,14 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   16 kHz 32 kbps; recording bar «🗑 · 0:07 · ➤», ≥ 1.5 s, auto-send at 2 min; upload = `new File(uri).upload(url,
   {BINARY_CONTENT})` with `api.js` `uploadHeaders("audio/aac")` / `readUpload` → server `POST /pub/me/load-chat/voice`
   (Gemini transcription, YukPlatform server.js `transcribeVoice`) → `{transcript, view}`; my bubble shows «🎤 N s «text»».
+- **Telegram-like chat (2026-11-25, his «Audio yuborishni ushlab turadigan … jo'natgan audiosini o'zida saqlab … boshqa
+  qurilmadan kirsa … eshitadigan … chat mukammal telegram chatiga o'xshasin»):** history lives on the server (YukPlatform
+  `load_chat` table): `GET /pub/me/load-chat[?after=id]` → `{intro, messages, used, limit}`, every action returns the new
+  messages; `merge()` keeps the list sorted, buttons only on the last `active` question. My message appears at once with 🕓,
+  then ✓ + time. 🎤 = PanResponder on the mic: hold → record, release → send, slide left < −90 → cancel, slide up < −80 →
+  🔒 lock (🗑 / ➤). Voice bubble ▶/❚❚ + progress + duration + transcript; one shared `useAudioPlayer`, source =
+  `api.js voiceSource(id)` (URL + auth headers; own fresh recording plays from the local file). After «✅ Yuborish» polls
+  `?after=` every 3 s (≤ 3 min) for the result message.
 - **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
   huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
   «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET

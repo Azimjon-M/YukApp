@@ -1,25 +1,51 @@
-// «📝 E'lon berish» — chat (Azimjon, 2026-11-25: «E'lon berish chat bo'lsin … bot qanday ishlayotgan bo'lsa qarab ko'r»).
-// Botdagi «📦 Yuk berish» bilan bir xil yo'l (server loadChat.js):
-//   yukingizni oddiy yozasiz → server tushunadi → raqam yo'q bo'lsa so'raydi (oldingi raqamlaringiz tugma) →
-//   «haydovchilarga shunday boradi» kartasi + [✅ Yuborish] [❌ Bekor qilish] → navbat → natija («N ta haydovchiga yuborildi»).
-// Ilovada rol yo'q — e'lonni har kim beradi (2026-11-25). Yozib yoki 🎤 ovoz bilan (ilova yozib oladi → server Gemini bilan
-// matnga o'giradi → shu yo'l). Tepada «Qanday yozish / aytish» namunasi (Azimjon: «e'lonni oson olishimiz kerak … E'lon
-// beruvchiga qulaylik kerak»). Qoralama serverda: botda boshlangani shu yerda ham davom etadi. Suhbat xotirada (modul darajasida) — boshqa bo'limga o'tib qaytsa ham turadi, ilova yopilsa — tozalanadi.
+// «📝 E'lon berish» — Telegram'dagidek chat (Azimjon, 2026-11-25: «chat mukammal telegram chatiga o'xshasin. qulaygina»).
+// Botdagi «📦 Yuk berish» bilan bir xil yo'l (server loadChat.js): yukingizni yozasiz yoki 🎤 bosib turib aytasiz → server
+// tushunadi (avval o'zimizning algoritm, kerak bo'lsa AI; ovozni Gemini matnga o'giradi) → raqam yo'q bo'lsa so'raydi →
+// «haydovchilarga shunday boradi» kartasi + [✅ Yuborish] [❌ Bekor qilish] → navbat → natija («N ta haydovchiga yuborildi»).
+// Suhbat SERVERDA saqlanadi (ovozli xabarlar ham): ilovani qayta o'rnatsa yoki boshqa telefondan kirsa — hammasi joyida,
+// ovozni bosib eshitadi. Ilova ichida tezlik uchun oxirgi holat xotirada ham turadi.
+// 🎤: bosib turing — yoziladi, qo'yib yuborsangiz — ketadi; chapga suring — bekor; tepaga suring — qulf (qo'lsiz yozish).
+// Ilovada rol yo'q — e'lonni har kim beradi.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
+import {
+  ActivityIndicator,
+  Animated,
+  AppState,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  Vibration,
+  View,
+} from "react-native";
+import {
+  RecordingPresets,
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { File, UploadType } from "expo-file-system";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { cancelLoad, confirmLoad, getLoadChat, getLoadResult, pickLoadPhone, readUpload, sendLoadText, uploadHeaders } from "../api.js";
+import { cancelLoad, confirmLoad, getLoadChat, pickLoadPhone, readUpload, sendLoadText, voiceSource, voiceUpload } from "../api.js";
 import { useSession } from "../session.js";
 import { toast } from "../toast.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button } from "../ui.js";
 
-const POLL_MS = 3_000; // yuborilgan yuk natijasini so'rash oralig'i
-const POLL_MAX = 40; // ~2 daqiqa
+const POLL_MS = 3_000; // yuborilgan yuk natijasini kutish
+const POLL_FOR_MS = 3 * 60_000;
 const VOICE_MAX_MS = 120_000; // ovoz ko'pi bilan 2 daqiqa
-const VOICE_MIN_MS = 1_500;
+const VOICE_MIN_MS = 1_000;
+const CANCEL_DX = -90; // shuncha chapga sursa — bekor
+const LOCK_DY = -80; // shuncha tepaga sursa — qulf
 // Ovoz: AAC (ADTS) mono 16 kHz — kichik fayl (~4 KB/s), Gemini «audio/aac» ni o'qiydi
 const VOICE_OPTIONS = {
   ...RecordingPresets.HIGH_QUALITY,
@@ -30,7 +56,7 @@ const VOICE_OPTIONS = {
   android: { extension: ".aac", outputFormat: "aac_adts", audioEncoder: "aac", sampleRate: 16000 },
 };
 
-// Tepadagi namuna: nima yozish / nima aytish (eng muhimi — qayerdan, qayerga, nima, necha tonna, raqam)
+// Tepadagi namuna: nima yozish / nima aytish
 const GUIDE = [
   ["📍", "Qayerdan → qayerga", "Andijondan Toshkentga"],
   ["📦", "Nima yuk, necha tonna", "20 tonna un"],
@@ -40,24 +66,40 @@ const GUIDE = [
 ];
 const SAY = "«Andijondan Toshkentga 20 tonna un bor, tent fura kerak, 3 million, ertaga. Telefon 90 123 45 67»";
 
-// Suhbat xabarlari: { id, from: "bot" | "me", text, cards?, stage?, phones?, done? (tugmalari ishlatildi) }
-let saved = { chatId: null, items: [] };
-let nextId = 1;
-const msg = (from, text, extra = {}) => ({ id: nextId++, from, text, ...extra });
+const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+const timeOf = (at) => (at ? new Date(at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }) : "");
+
+// Xotiradagi oxirgi holat (bo'limdan chiqib qaytsa darhol ko'rinadi; server baribir yangilaydi)
+let memory = { chatId: null, messages: [], intro: "", quota: null };
+let localId = 0;
+
+// Server xabarlarini ro'yxatga qo'shish: bir xil id — yangisi bilan almashadi; tugmalar faqat eng oxirgi faol savolda
+function merge(list, fresh) {
+  const byId = new Map(list.map((m) => [m.id, m]));
+  for (const m of fresh) byId.set(m.id, m);
+  const all = [...byId.values()].sort((a, b) => (a.local || b.local ? (a.at ?? 0) - (b.at ?? 0) : a.id - b.id));
+  const lastActive = [...all].reverse().find((m) => m.active)?.id;
+  return all.map((m) => (m.active && m.id !== lastActive ? { ...m, active: false } : m));
+}
 
 export function LoadChat() {
   const { me } = useSession();
   const insets = useSafeAreaInsets();
-  const [items, setItems] = useState(() => (saved.chatId === me?.chatId ? saved.items : []));
+  const own = memory.chatId === me?.chatId ? memory : { messages: [], intro: "", quota: null };
+  const [messages, setMessages] = useState(own.messages);
+  const [pending, setPending] = useState([]); // yuborilayotgan (server hali javob bermagan) xabarlarim
+  const [intro, setIntro] = useState(own.intro);
+  const [quota, setQuota] = useState(own.quota);
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false); // server javobini kutyapmiz
-  const [quota, setQuota] = useState(null); // { used, limit }
+  const [busy, setBusy] = useState(false);
+  const [waitUntil, setWaitUntil] = useState(0); // natija kutilyapti (shu vaqtgacha so'raymiz)
   const listRef = useRef(null);
   const alive = useRef(true);
+  const lastId = messages.filter((m) => !m.local).reduce((max, m) => Math.max(max, m.id), 0);
 
   useEffect(() => {
-    saved = { chatId: me?.chatId, items };
-  }, [items, me?.chatId]);
+    memory = { chatId: me?.chatId, messages, intro, quota };
+  }, [messages, intro, quota, me?.chatId]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -65,48 +107,66 @@ export function LoadChat() {
     };
   }, []);
 
-  const add = useCallback((...more) => setItems((list) => [...list, ...more]), []);
-  // Oxirgi bot xabarining tugmalari ishlatildi — qayta bosilmasin
-  const closeButtons = useCallback(() => setItems((list) => list.map((item) => (item.stage ? { ...item, done: true } : item))), []);
-  const botView = (view) => msg("bot", view.text, { cards: view.cards, stage: view.stage, phones: view.phones });
+  const apply = useCallback((data) => {
+    if (!alive.current || !data) return;
+    if (data.intro) setIntro(data.intro);
+    if (data.limit) setQuota({ used: data.used, limit: data.limit });
+    if (data.messages?.length) {
+      setMessages((list) => merge(list, data.messages));
+      // yuk yuborildi — natijasini kutamiz
+      if (data.messages.some((m) => m.postId)) setWaitUntil(Date.now() + POLL_FOR_MS);
+    }
+  }, []);
 
-  // Birinchi ochilish: salomlashish + (bo'lsa) tugallanmagan qoralama
-  useEffect(() => {
-    if (items.length) return;
+  // To'liq yangilash: ochilganda va ilovaga qaytganda
+  const refresh = useCallback(() => {
     getLoadChat()
       .then((data) => {
         if (!alive.current) return;
-        setQuota({ used: data.used, limit: data.limit });
-        add(msg("bot", data.intro), ...(data.view ? [botView(data.view)] : []));
+        setMessages(merge([], data.messages ?? []));
+        apply({ ...data, messages: [] });
       })
-      .catch((error) => add(msg("bot", `⚠️ ${error.message}`)));
-    // faqat bir marta
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      .catch(() => {});
+  }, [apply]);
+  useEffect(() => {
+    refresh();
+    const sub = AppState.addEventListener("change", (next) => next === "active" && refresh());
+    return () => sub.remove();
+  }, [refresh]);
 
-  // Yuborilgan yuk natijasini kutish (bot ishchisi bir necha soniyada yuboradi)
-  const waitResult = useCallback(
-    async (id) => {
-      for (let i = 0; i < POLL_MAX && alive.current; i++) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-        const result = await getLoadResult(id).catch(() => null);
-        if (result?.done) {
-          if (alive.current) add(msg("bot", result.text));
-          return;
-        }
+  // Natijani kutish: faqat yangi xabarlar so'raladi
+  useEffect(() => {
+    if (!waitUntil) return undefined;
+    const timer = setInterval(() => {
+      if (Date.now() > waitUntil) {
+        setWaitUntil(0);
+        return;
       }
-    },
-    [add],
-  );
+      getLoadChat(lastId)
+        .then((data) => {
+          apply({ ...data, intro: null });
+          if (data.messages?.some((m) => m.from === "bot" && !m.postId)) setWaitUntil(0);
+        })
+        .catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(timer);
+  }, [waitUntil, lastId, apply]);
 
-  const run = async (job) => {
+  // Bitta amal: xabarim darhol (🕓), keyin server javobi
+  const run = async (mine, job) => {
     if (busy) return;
+    const temp = mine ? { id: `p${++localId}`, from: "me", pending: true, at: Date.now(), ...mine } : null;
+    if (temp) setPending((list) => [...list, temp]);
     setBusy(true);
     try {
-      await job();
+      const data = await job();
+      // O'zim yozgan ovozni darhol eshita olay: server xabariga telefondagi fayl ulanadi
+      if (temp?.localUri && data?.messages?.[0]?.audio) data.messages[0] = { ...data.messages[0], localUri: temp.localUri };
+      apply(data);
     } catch (error) {
-      add(msg("bot", `⚠️ ${error.message}`));
+      setMessages((list) => [...list, { id: `e${++localId}`, from: "bot", text: `⚠️ ${error.message}`, at: Date.now(), local: true }]);
     } finally {
+      if (temp) setPending((list) => list.filter((m) => m.id !== temp.id));
       if (alive.current) setBusy(false);
     }
   };
@@ -115,87 +175,138 @@ export function LoadChat() {
     const value = text.trim();
     if (!value) return;
     setText("");
-    closeButtons();
-    add(msg("me", value));
-    run(async () => add(botView(await sendLoadText(value))));
+    run({ text: value }, () => sendLoadText(value));
   };
-  const choosePhone = (phone) => {
-    closeButtons();
-    add(msg("me", phone.label));
-    run(async () => add(botView(await pickLoadPhone(phone.phone))));
-  };
-  const confirm = () => {
-    closeButtons();
-    add(msg("me", "✅ Yuborish"));
-    run(async () => {
-      const sent = await confirmLoad();
-      add(msg("bot", sent.text));
-      setQuota((q) => (q ? { ...q, used: q.used + 1 } : q));
-      waitResult(sent.id);
-    });
-  };
-  const cancel = () => {
-    closeButtons();
-    add(msg("me", "❌ Bekor qilish"));
-    run(async () => add(msg("bot", (await cancelLoad()).text)));
-  };
+  const choosePhone = (phone) => run({ text: `📞 ${phone.label}` }, () => pickLoadPhone(phone.phone));
+  const confirm = () => run({ text: "✅ Yuborish" }, () => confirmLoad());
+  const cancel = () => run({ text: "❌ Bekor qilish" }, () => cancelLoad());
 
-  // --- 🎤 Ovoz ---
+  // --- 🎤 Ovoz yozish ---
   const recorder = useAudioRecorder(VOICE_OPTIONS);
-  const rec = useAudioRecorderState(recorder, 200);
-  const recording = rec.isRecording;
-  const startVoice = async () => {
-    if (busy || recording) return;
+  const rec = useAudioRecorderState(recorder, 150);
+  const [mode, setMode] = useState("idle"); // idle | hold (bosib turibdi) | locked (qulf) | cancel (chapga surdi)
+  const [drag] = useState(() => new Animated.ValueXY());
+  const modeRef = useRef("idle");
+  const setModeBoth = useCallback((next) => {
+    modeRef.current = next;
+    setMode(next);
+  }, []);
+  const durationRef = useRef(0);
+  useEffect(() => {
+    durationRef.current = rec.durationMillis;
+  }, [rec.durationMillis]);
+
+  const startRec = async () => {
     try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) {
-        if (!perm.canAskAgain) {
+      const has = await getRecordingPermissionsAsync();
+      if (!has.granted) {
+        // Ruxsat oynasi chiqqanda barmoq baribir qo'yib yuboriladi — ruxsatdan keyin yana bosib turadi
+        const perm = await requestRecordingPermissionsAsync();
+        if (perm.granted) toast("✅ Endi 🎤 ni bosib turib gapiring");
+        else if (!perm.canAskAgain) {
           toast("Mikrofonga ruxsat yo'q — sozlamalardan yoqing");
           Linking.openSettings().catch(() => {});
-        } else toast("Ovoz yozish uchun mikrofonga ruxsat bering");
+        }
+        setModeBoth("idle");
         return;
       }
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
+      if (modeRef.current === "idle") return; // tayyorlanguncha qo'yib yubordi
       recorder.record();
+      Vibration.vibrate(30);
     } catch {
       toast("Ovoz yozib bo'lmadi — yozib yuboring");
+      setModeBoth("idle");
     }
   };
-  const stopRecorder = async () => {
+  const stopRec = async () => {
     await recorder.stop().catch(() => {});
-    await setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
     return recorder.uri;
   };
-  const cancelVoice = async () => {
-    await stopRecorder();
-    toast("🗑 Ovoz bekor qilindi");
-  };
-  const sendVoice = async () => {
-    const ms = rec.durationMillis;
-    const uri = await stopRecorder();
+  const finishVoice = async (keep) => {
+    const ms = durationRef.current;
+    setModeBoth("idle");
+    drag.setValue({ x: 0, y: 0 });
+    const uri = await stopRec();
+    if (!keep) return;
     if (!uri || ms < VOICE_MIN_MS) {
-      toast("Juda qisqa — tugmani bosib, yukingizni aytib bering");
+      toast("Juda qisqa — 🎤 ni bosib turib gapiring");
       return;
     }
-    closeButtons();
-    const seconds = Math.round(ms / 1000);
-    run(async () => {
-      const { url, headers } = uploadHeaders("audio/aac");
-      const result = readUpload(await new File(uri).upload(url, { httpMethod: "POST", uploadType: UploadType.BINARY_CONTENT, headers }));
-      add(msg("me", `🎤 ${seconds} s\n«${result.transcript}»`), botView(result.view));
+    run({ audio: true, durationMs: ms, localUri: uri }, async () => {
+      const { url, headers } = voiceUpload(ms);
+      return readUpload(await new File(uri).upload(url, { httpMethod: "POST", uploadType: UploadType.BINARY_CONTENT, headers }));
     });
   };
+  // PanResponder bir marta yaratiladi — eng yangi funksiyalarni ref orqali chaqiradi
+  const handlers = useRef({});
+  useEffect(() => {
+    handlers.current = { start: startRec, finish: finishVoice };
+  });
+
+  // Bosib turish / surish (Telegram'dagidek)
+  const [pan] = useState(() =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        modeRef.current = "hold";
+        setMode("hold");
+        handlers.current.start?.();
+      },
+      onPanResponderMove: (_, g) => {
+        if (modeRef.current !== "hold" && modeRef.current !== "cancel") return;
+        drag.setValue({ x: Math.min(0, g.dx), y: Math.min(0, g.dy) });
+        let next = g.dx < CANCEL_DX ? "cancel" : "hold";
+        if (g.dy < LOCK_DY) {
+          next = "locked";
+          drag.setValue({ x: 0, y: 0 });
+          Vibration.vibrate(20);
+        }
+        if (next !== modeRef.current) {
+          modeRef.current = next;
+          setMode(next);
+        }
+      },
+      onPanResponderRelease: () => {
+        if (modeRef.current === "locked") return; // qulf — ➤ yoki 🗑 kutiladi
+        handlers.current.finish?.(modeRef.current === "hold");
+      },
+      onPanResponderTerminate: () => {
+        if (modeRef.current !== "locked") handlers.current.finish?.(false);
+      },
+    }),
+  );
+
   // 2 daqiqadan oshsa — o'zi yuboriladi
   useEffect(() => {
-    if (!recording || rec.durationMillis < VOICE_MAX_MS) return undefined;
-    const timer = setTimeout(sendVoice, 0);
+    if (!rec.isRecording || rec.durationMillis < VOICE_MAX_MS) return undefined;
+    const timer = setTimeout(() => handlers.current.finish?.(true), 0);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, rec.durationMillis]);
+  }, [rec.isRecording, rec.durationMillis]);
 
-  const data = busy ? [...items, { id: "typing", from: "bot", typing: true }] : items;
-  const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
+  // --- ▶️ Tinglash (bitta umumiy pleer) ---
+  const player = useAudioPlayer(null);
+  const playing = useAudioPlayerStatus(player);
+  const [playingId, setPlayingId] = useState(null);
+  const togglePlay = (m) => {
+    if (playingId === m.id) {
+      if (playing.playing) player.pause();
+      else {
+        if (playing.didJustFinish || (playing.duration && playing.currentTime >= playing.duration - 0.1)) player.seekTo(0);
+        player.play();
+      }
+      return;
+    }
+    setPlayingId(m.id);
+    player.replace(m.localUri ? { uri: m.localUri } : voiceSource(m.id));
+    player.play();
+  };
+
+  const recording = mode !== "idle";
+  const all = [...messages, ...pending, ...(busy ? [{ id: "typing", from: "bot", typing: true }] : [])];
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior="padding" keyboardVerticalOffset={insets.top + 56}>
@@ -203,52 +314,81 @@ export function LoadChat() {
         ref={listRef}
         style={styles.page}
         contentContainerStyle={styles.list}
-        data={data}
+        data={all}
         keyExtractor={(item) => String(item.id)}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        ListHeaderComponent={<Guide />}
-        renderItem={({ item }) => <Bubble item={item} onPhone={choosePhone} onConfirm={confirm} onCancel={cancel} busy={busy} />}
+        ListHeaderComponent={
+          <>
+            <Guide />
+            {intro ? <Bubble item={{ id: "intro", from: "bot", text: intro }} /> : null}
+          </>
+        }
+        renderItem={({ item }) => (
+          <Bubble
+            item={item}
+            onPhone={choosePhone}
+            onConfirm={confirm}
+            onCancel={cancel}
+            busy={busy}
+            onPlay={togglePlay}
+            playback={playingId === item.id ? playing : null}
+          />
+        )}
         keyboardShouldPersistTaps="handled"
       />
       {quota ? <Text style={styles.quota}>24 soatda {quota.used} / {quota.limit} ta yuk</Text> : null}
+
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
         {recording ? (
-          <>
-            <Pressable role="button" aria-label="Bekor qilish" onPress={cancelVoice} style={({ pressed }) => [styles.roundBtn, styles.trashBtn, pressed && styles.pressed]}>
-              <Text style={styles.sendIcon}>🗑</Text>
-            </Pressable>
-            <View style={styles.recBox}>
-              <View style={styles.recDot} />
-              <Text style={styles.recText}>
-                {clock(rec.durationMillis)} · Gapiring… tugatgach ➤ ni bosing
-              </Text>
-            </View>
-            <Pressable role="button" aria-label="Ovozni yuborish" onPress={sendVoice} style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}>
-              <Text style={styles.sendIcon}>➤</Text>
-            </Pressable>
-          </>
+          <View style={styles.recBox}>
+            {mode === "locked" ? (
+              <Pressable role="button" aria-label="Bekor qilish" onPress={() => finishVoice(false)} hitSlop={10}>
+                <Text style={styles.recTrash}>🗑</Text>
+              </Pressable>
+            ) : null}
+            <View style={styles.recDot} />
+            <Text style={styles.recTime}>{clock(rec.durationMillis)}</Text>
+            <Text style={[styles.recHint, mode === "cancel" && styles.recHintCancel]} numberOfLines={1}>
+              {mode === "cancel" ? "Qo'yib yuboring — bekor bo'ladi" : mode === "locked" ? "Gapiring… tugatgach ➤" : "◀ Bekor qilish uchun suring"}
+            </Text>
+          </View>
         ) : (
-          <>
-            <TextInput
-              style={styles.input}
-              value={text}
-              onChangeText={setText}
-              placeholder="Yukingizni yozing yoki 🎤 bosib ayting…"
-              placeholderTextColor={colors.hint}
-              multiline
-              maxLength={3000}
-              editable={!busy}
-            />
-            {text.trim() ? (
-              <Pressable role="button" aria-label="Yuborish" onPress={send} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.sendOff, pressed && styles.pressed]}>
-                <Text style={styles.sendIcon}>➤</Text>
-              </Pressable>
-            ) : (
-              <Pressable role="button" aria-label="Ovoz yozish" onPress={startVoice} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.sendOff, pressed && styles.pressed]}>
-                <Text style={styles.sendIcon}>🎤</Text>
-              </Pressable>
-            )}
-          </>
+          <TextInput
+            style={styles.input}
+            value={text}
+            onChangeText={setText}
+            placeholder="Yukingizni yozing yoki 🎤 bosib ayting…"
+            placeholderTextColor={colors.hint}
+            multiline
+            maxLength={3000}
+          />
+        )}
+
+        {mode === "locked" ? (
+          <Pressable role="button" aria-label="Ovozni yuborish" onPress={() => finishVoice(true)} style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </Pressable>
+        ) : text.trim() && !recording ? (
+          <Pressable role="button" aria-label="Yuborish" onPress={send} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.off, pressed && styles.pressed]}>
+            <Text style={styles.sendIcon}>➤</Text>
+          </Pressable>
+        ) : (
+          <View>
+            {mode === "hold" || mode === "cancel" ? (
+              <View style={styles.lockHint} pointerEvents="none">
+                <Text style={styles.lockText}>🔒</Text>
+                <Text style={styles.lockArrow}>▲</Text>
+              </View>
+            ) : null}
+            <Animated.View
+              {...(busy ? {} : pan.panHandlers)}
+              style={[styles.roundBtn, recording && styles.micActive, busy && styles.off, { transform: drag.getTranslateTransform() }]}
+              accessibilityRole="button"
+              accessibilityLabel="Ovoz yozish: bosib turing"
+            >
+              <Text style={styles.sendIcon}>🎤</Text>
+            </Animated.View>
+          </View>
         )}
       </View>
     </KeyboardAvoidingView>
@@ -275,7 +415,7 @@ function Guide() {
               </Text>
             </View>
           ))}
-          <Text style={styles.guideSub}>🎤 Yoki mikrofonni bosib, shunday ayting:</Text>
+          <Text style={styles.guideSub}>🎤 Yoki mikrofonni bosib turib, shunday ayting:</Text>
           <Text style={styles.guideSay}>{SAY}</Text>
           <Text style={styles.guideNote}>Raqamni aytmasangiz — keyin so'raymiz. Yuborishdan oldin haydovchilarga qanday borishini ko'rasiz.</Text>
         </>
@@ -284,7 +424,7 @@ function Guide() {
   );
 }
 
-function Bubble({ item, onPhone, onConfirm, onCancel, busy }) {
+function Bubble({ item, onPhone, onConfirm, onCancel, busy, onPlay, playback }) {
   const mine = item.from === "me";
   if (item.typing) {
     return (
@@ -294,12 +434,15 @@ function Bubble({ item, onPhone, onConfirm, onCancel, busy }) {
       </View>
     );
   }
-  const open = item.stage && !item.done;
   return (
     <View style={[styles.bubble, mine ? styles.me : styles.bot]}>
-      <Text style={[styles.text, mine && styles.meText]} selectable>
-        {item.text}
-      </Text>
+      {item.audio ? <Voice item={item} mine={mine} onPlay={onPlay} playback={playback} /> : null}
+      {item.audio && item.transcript ? <Text style={[styles.transcript, mine && styles.meSoft]}>«{item.transcript}»</Text> : null}
+      {item.text ? (
+        <Text style={[styles.text, mine && styles.meText]} selectable>
+          {item.text}
+        </Text>
+      ) : null}
       {item.cards?.map((lines, i) => (
         <View key={i} style={styles.card}>
           {lines.map((line, j) => (
@@ -310,13 +453,13 @@ function Bubble({ item, onPhone, onConfirm, onCancel, busy }) {
           ))}
         </View>
       ))}
-      {open && item.stage === "confirm" ? (
+      {item.active && item.stage === "confirm" ? (
         <View style={styles.actions}>
           <Button title="✅ Yuborish" onPress={onConfirm} disabled={busy} />
           <Button title="❌ Bekor qilish" kind="secondary" onPress={onCancel} disabled={busy} />
         </View>
       ) : null}
-      {open && item.stage === "phone" ? (
+      {item.active && item.stage === "phone" ? (
         <View style={styles.actions}>
           {item.phones?.map((phone) => (
             <Button key={phone.phone} title={`📞 ${phone.label}`} kind="secondary" onPress={() => onPhone(phone)} disabled={busy} />
@@ -324,6 +467,40 @@ function Bubble({ item, onPhone, onConfirm, onCancel, busy }) {
           <Button title="❌ Bekor qilish" kind="link" onPress={onCancel} disabled={busy} />
         </View>
       ) : null}
+      {item.id !== "intro" ? (
+        <Text style={[styles.time, mine && styles.meSoft]}>{item.pending ? "🕓" : `${timeOf(item.at)}${mine ? " ✓" : ""}`}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// Ovozli xabar: ▶️/⏸, chiziq (qancha eshitildi), vaqt
+function Voice({ item, mine, onPlay, playback }) {
+  const total = (playback?.duration ? playback.duration * 1000 : 0) || item.durationMs || 0;
+  const at = playback ? playback.currentTime * 1000 : 0;
+  const part = total ? Math.min(at / total, 1) : 0;
+  const isPlaying = Boolean(playback?.playing);
+  return (
+    <View style={styles.voice}>
+      <Pressable
+        role="button"
+        aria-label={isPlaying ? "To'xtatish" : "Eshitish"}
+        onPress={() => !item.pending && onPlay?.(item)}
+        style={[styles.playBtn, mine && styles.playBtnMine]}
+        hitSlop={8}
+      >
+        {playback?.isBuffering && !isPlaying ? (
+          <ActivityIndicator size="small" color={mine ? colors.accent : colors.accentText} />
+        ) : (
+          <Text style={[styles.playIcon, mine && styles.playIconMine]}>{isPlaying ? "❚❚" : "▶"}</Text>
+        )}
+      </Pressable>
+      <View style={styles.voiceRight}>
+        <View style={[styles.voiceTrack, mine && styles.voiceTrackMine]}>
+          <View style={[styles.voiceFill, mine && styles.voiceFillMine, { width: `${Math.round(part * 100)}%` }]} />
+        </View>
+        <Text style={[styles.voiceTime, mine && styles.meSoft]}>{clock(playback && at > 0 ? at : total)}</Text>
+      </View>
     </View>
   );
 }
@@ -332,17 +509,31 @@ const styles = themed(() =>
   StyleSheet.create({
     page: { flex: 1, backgroundColor: colors.bg },
     list: { padding: space.md, gap: space.sm },
-    bubble: { maxWidth: "88%", borderRadius: radius + 2, paddingVertical: space.sm, paddingHorizontal: space.md, gap: space.sm },
-    bot: { alignSelf: "flex-start", backgroundColor: colors.card, borderTopLeftRadius: 4 },
-    me: { alignSelf: "flex-end", backgroundColor: colors.accent, borderTopRightRadius: 4 },
-    typing: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    bubble: { maxWidth: "86%", borderRadius: radius + 4, paddingTop: space.sm, paddingBottom: 6, paddingHorizontal: space.md, gap: 6 },
+    bot: { alignSelf: "flex-start", backgroundColor: colors.card, borderBottomLeftRadius: 4 },
+    me: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 4 },
+    typing: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingBottom: space.sm },
     text: { fontSize: 15, lineHeight: 21, color: colors.text },
     meText: { color: colors.accentText },
+    meSoft: { color: "rgba(255,255,255,0.8)" },
+    transcript: { fontSize: 13, lineHeight: 18, fontStyle: "italic", color: colors.hint },
+    time: { fontSize: 11, color: colors.hint, alignSelf: "flex-end" },
     hintText: { fontSize: 14, color: colors.hint },
     card: { backgroundColor: colors.soft, borderRadius: radius, padding: space.md, gap: 4 },
     cardHead: { fontWeight: "700" },
     cardLine: { fontSize: 14, lineHeight: 20, color: colors.text },
     actions: { gap: space.sm },
+    voice: { flexDirection: "row", alignItems: "center", gap: space.sm, minWidth: 200 },
+    playBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+    playBtnMine: { backgroundColor: "#fff" },
+    playIcon: { color: colors.accentText, fontSize: 15, fontWeight: "800" },
+    playIconMine: { color: colors.accent },
+    voiceRight: { flex: 1, gap: 4 },
+    voiceTrack: { height: 4, borderRadius: 2, backgroundColor: colors.line, overflow: "hidden" },
+    voiceTrackMine: { backgroundColor: "rgba(255,255,255,0.35)" },
+    voiceFill: { height: "100%", backgroundColor: colors.accent },
+    voiceFillMine: { backgroundColor: "#fff" },
+    voiceTime: { fontSize: 12, color: colors.hint },
     quota: { fontSize: 12, color: colors.hint, textAlign: "center", paddingVertical: 2 },
     bar: {
       flexDirection: "row",
@@ -365,11 +556,20 @@ const styles = themed(() =>
       color: colors.text,
       backgroundColor: colors.bg,
     },
-    roundBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
-    trashBtn: { backgroundColor: colors.error },
-    recBox: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, borderRadius: 22, backgroundColor: colors.bg },
+    roundBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+    micActive: { backgroundColor: colors.error },
+    off: { opacity: 0.4 },
+    sendIcon: { color: colors.accentText, fontSize: 20, fontWeight: "700" },
+    pressed: { opacity: 0.6 },
+    recBox: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, borderRadius: 24, backgroundColor: colors.bg },
+    recTrash: { fontSize: 20 },
     recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.error },
-    recText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: "600" },
+    recTime: { fontSize: 15, fontWeight: "700", color: colors.text, minWidth: 40 },
+    recHint: { flex: 1, fontSize: 13, color: colors.hint },
+    recHintCancel: { color: colors.error, fontWeight: "700" },
+    lockHint: { position: "absolute", bottom: 58, alignSelf: "center", alignItems: "center", backgroundColor: colors.card, borderRadius: 16, paddingVertical: 6, paddingHorizontal: 8, elevation: 4 },
+    lockText: { fontSize: 16 },
+    lockArrow: { fontSize: 10, color: colors.hint },
     guide: { backgroundColor: colors.card, borderRadius: radius + 2, padding: space.md, gap: 6, marginBottom: space.sm, borderWidth: 1, borderColor: colors.barBorder },
     guideHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     guideTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
@@ -381,8 +581,5 @@ const styles = themed(() =>
     guideSay: { fontSize: 14, lineHeight: 20, color: colors.text, fontStyle: "italic", backgroundColor: colors.soft, borderRadius: radius, padding: space.sm },
     guideNote: { fontSize: 13, lineHeight: 18, color: colors.hint },
     bold: { fontWeight: "700" },
-    sendOff: { opacity: 0.4 },
-    sendIcon: { color: colors.accentText, fontSize: 20, fontWeight: "700" },
-    pressed: { opacity: 0.6 },
   }),
 );
