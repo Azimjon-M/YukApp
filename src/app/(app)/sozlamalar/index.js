@@ -6,7 +6,7 @@ import { router } from "expo-router";
 import { feedLabel, profileRows, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
 import { setActive } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
-import { enable, permission } from "../../../notify.js";
+import { batteryLimited, enable, freeBattery, permission } from "../../../notify.js";
 import { useSession } from "../../../session.js";
 import { colors, space, themed } from "../../../theme.js";
 import { Button, Hint } from "../../../ui.js";
@@ -82,24 +82,35 @@ export default function AdSettingsScreen() {
 
 // «📲 Telefonga bildirishnoma»: holati; o'chiq bo'lsa — «Yoqish», yoqilgan bo'lsa — o'chirish telefon sozlamalarida
 function PushSection() {
-  const [granted, setGranted] = useState(null);
-  const check = useCallback(() => permission().then((p) => setGranted(p.granted)), []);
+  const [state, setState] = useState(null); // { granted, limited }
+  const check = useCallback(async () => {
+    const [p, limited] = await Promise.all([permission(), batteryLimited()]);
+    setState({ granted: p.granted, limited });
+  }, []);
   useEffect(() => {
-    check();
+    const first = setTimeout(check, 0);
     const sub = AppState.addEventListener("change", (next) => next === "active" && check());
-    return () => sub.remove();
+    return () => {
+      clearTimeout(first);
+      sub.remove();
+    };
   }, [check]);
-  if (granted === null) return null;
+  if (!state) return null;
+  const { granted, limited } = state;
   return (
     <Section title="📲 Telefonga bildirishnoma">
       <Text style={settingsStyles.rowText}>
         {granted ? "● Yoqilgan — ilova yopiq bo'lsa ham yangi e'lonlar haqida xabar keladi" : "○ O'chiq — telefonga xabar kelmaydi"}
       </Text>
+      {granted ? null : <Button title="🔔 Yoqish" onPress={() => enable().then(check)} />}
       {granted ? (
-        <Button title="Telefon sozlamalari" kind="secondary" onPress={() => Linking.openSettings().catch(() => {})} />
-      ) : (
-        <Button title="🔔 Yoqish" onPress={() => enable().then(setGranted)} />
-      )}
+        <>
+          <Text style={settingsStyles.rowText}>{limited ? "🔋 Batareya tejash ilovani to'xtatishi mumkin — xabar kechikadi" : "🔋 Batareya tejash to'xtatmaydi"}</Text>
+          {limited ? <Button title="🔋 Ruxsat berish" onPress={() => freeBattery().then(check)} /> : null}
+          <Hint>Infinix, Tecno, Xiaomi telefonlarida ilova sozlamalarida «Avtoishga tushirish» (Auto-start) ni ham yoqing.</Hint>
+          <Button title="Ilova sozlamalari" kind="secondary" onPress={() => Linking.openSettings().catch(() => {})} />
+        </>
+      ) : null}
     </Section>
   );
 }

@@ -1,25 +1,57 @@
-// «🔔 Bildirishnomani yoqasizmi?» oynasi. Birinchi kirishda va o'chiq qolsa har 3 kunda (notifyAsk.js), muloyim, majburiy emas.
+// Muloyim so'rash oynalari (notifyAsk.js qoidasi: birinchi marta, keyin o'chiq qolsa har 3 kunda, «Kerak emas» — boshqa yo'q):
+//   1) 🔔 bildirishnomaga ruxsat;
+//   2) 🔋 batareya tejash ilovani to'xtatmasin (bildirishnoma yoqilgandan keyin; ayniqsa Infinix/Tecno/Xiaomi'da kerak).
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Modal, Platform, StyleSheet, Text, View } from "react-native";
 import { afterAsk, afterNever, afterSkip, askKind, parseSaved } from "../notifyAsk.js";
-import { enable, permission } from "../notify.js";
+import { batteryLimited, enable, freeBattery, permission } from "../notify.js";
 import { loadValue, saveValue } from "../storage.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button } from "../ui.js";
 
-const KEY = "yuk_notify_ask";
+const STEPS = {
+  notify: {
+    key: "yuk_notify_ask",
+    icon: "🔔",
+    title: { first: "Yangi yuklarni o'tkazib yubormang", again: "Bildirishnomalar o'chiq" },
+    text: {
+      first: "Ilova yopiq bo'lsa ham, filtringizga mos e'lon chiqishi bilan xabar keladi: qayerdan → qayerga va bir bosishda qo'ng'iroq.",
+      again: "Hozir yangi e'lonlar haqida telefoningizga xabar kelmayapti. Yoqib qo'yasizmi? Istamasangiz — bemalol, ilova baribir ishlayveradi.",
+    },
+    yes: "🔔 Yoqish",
+    run: enable,
+  },
+  battery: {
+    key: "yuk_battery_ask",
+    icon: "🔋",
+    title: { first: "Telefon xabarlarni to'xtatmasin", again: "Batareya tejash xabarlarni to'xtatyapti" },
+    text: {
+      first: "Batareya tejash rejimi ilovani fonda uxlatib qo'yadi — yangi yuk haqidagi xabar kech keladi yoki umuman kelmaydi. Keyingi oynada «Ruxsat berish» ni bosing. Batareyaga deyarli ta'sir qilmaydi.",
+      again: "Telefoningiz hali ham ilovani fonda to'xtatib qo'yishi mumkin — xabarlar kechikadi. Ruxsat berasizmi? Istamasangiz — kerak emas.",
+    },
+    yes: "🔋 Ruxsat berish",
+    run: freeBattery,
+  },
+};
 
 export function NotifyPrompt() {
-  const [kind, setKind] = useState(null); // null | "first" | "again"
-  const [saved, setSaved] = useState({});
+  const [ask, setAsk] = useState(null); // { step, kind, saved }
   const [busy, setBusy] = useState(false);
 
   const check = useCallback(async () => {
-    if (Platform.OS !== "android") return; // bildirishnoma faqat Android ilovada
+    if (Platform.OS !== "android") return; // faqat Android ilovada
+    const now = Date.now();
     const p = await permission();
-    const s = parseSaved(await loadValue(KEY));
-    setSaved(s);
-    setKind(askKind(p.granted, s, Date.now()));
+    const notifySaved = parseSaved(await loadValue(STEPS.notify.key));
+    const notifyKind = askKind(p.granted, notifySaved, now);
+    if (notifyKind) return setAsk({ step: "notify", kind: notifyKind, saved: notifySaved });
+    if (p.granted) {
+      const limited = await batteryLimited();
+      const batterySaved = parseSaved(await loadValue(STEPS.battery.key));
+      const batteryKind = askKind(!limited, batterySaved, now);
+      if (batteryKind) return setAsk({ step: "battery", kind: batteryKind, saved: batterySaved });
+    }
+    setAsk(null);
   }, []);
 
   useEffect(() => {
@@ -31,35 +63,32 @@ export function NotifyPrompt() {
     };
   }, [check]);
 
+  if (!ask) return null;
+  const step = STEPS[ask.step];
   const store = (next) => {
-    setSaved(next);
-    saveValue(KEY, JSON.stringify(next));
-    setKind(null);
+    saveValue(step.key, JSON.stringify(next));
+    setAsk(null);
   };
-  const onEnable = async () => {
+  const onYes = async () => {
     setBusy(true);
-    await enable();
+    await step.run();
     setBusy(false);
-    store(afterAsk(saved, Date.now()));
+    store(afterAsk(ask.saved, Date.now()));
+    if (ask.step === "notify") setTimeout(check, 600); // ruxsat berdi — darhol batareya so'rovi (kerak bo'lsa)
   };
-
-  if (!kind) return null;
-  const again = kind === "again";
+  const later = () => store(afterSkip(ask.saved, Date.now()));
+  const again = ask.kind === "again";
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={() => store(afterSkip(saved, Date.now()))}>
+    <Modal transparent animationType="fade" visible onRequestClose={later}>
       <View style={styles.backdrop}>
         <View style={styles.box}>
-          <Text style={styles.icon}>🔔</Text>
-          <Text style={styles.title}>{again ? "Bildirishnomalar o'chiq" : "Yangi yuklarni o'tkazib yubormang"}</Text>
-          <Text style={styles.text}>
-            {again
-              ? "Hozir yangi e'lonlar haqida telefoningizga xabar kelmayapti. Yoqib qo'yasizmi? Istamasangiz — bemalol, ilova baribir ishlayveradi."
-              : "Ilova yopiq bo'lsa ham, filtringizga mos e'lon chiqishi bilan xabar keladi: qayerdan → qayerga va bir bosishda qo'ng'iroq."}
-          </Text>
+          <Text style={styles.icon}>{step.icon}</Text>
+          <Text style={styles.title}>{step.title[ask.kind]}</Text>
+          <Text style={styles.text}>{step.text[ask.kind]}</Text>
           <View style={styles.actions}>
-            <Button title="🔔 Yoqish" onPress={onEnable} busy={busy} />
-            <Button title="Keyinroq" kind="secondary" onPress={() => store(afterSkip(saved, Date.now()))} disabled={busy} />
-            {again ? <Button title="Kerak emas" kind="link" onPress={() => store(afterNever(saved))} disabled={busy} /> : null}
+            <Button title={step.yes} onPress={onYes} busy={busy} />
+            <Button title="Keyinroq" kind="secondary" onPress={later} disabled={busy} />
+            {again ? <Button title="Kerak emas" kind="link" onPress={() => store(afterNever(ask.saved))} disabled={busy} /> : null}
           </View>
         </View>
       </View>

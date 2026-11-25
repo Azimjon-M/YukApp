@@ -4,6 +4,9 @@
 // Android 13+: ruxsat oynasi kanal yaratilmaguncha chiqmaydi — shuning uchun avval setup().
 import { useEffect } from "react";
 import { Linking, Platform } from "react-native";
+import * as Battery from "expo-battery";
+import Constants from "expo-constants";
+import * as IntentLauncher from "expo-intent-launcher";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { savePushToken } from "./api.js";
@@ -66,6 +69,28 @@ export async function enable() {
     return granted;
   } catch {
     return false;
+  }
+}
+
+// Batareya tejash rejimi ilovani fonda uxlatadimi (true — cheklangan: bildirishnoma kech keladi yoki kelmaydi).
+// Bildirishnoma FCM orqali keladi — ilova fonda o'zi ishlamaydi, shuning uchun ruxsat batareyaga deyarli ta'sir qilmaydi
+export async function batteryLimited() {
+  if (!native) return false;
+  try {
+    return await Battery.isBatteryOptimizationEnabledAsync();
+  } catch {
+    return false;
+  }
+}
+
+// «Ruxsat berish»: Android'ning «Batareya tejashni e'tiborsiz qoldirish» oynasi; ochilmasa — umumiy ro'yxat
+export async function freeBattery() {
+  if (!native) return;
+  const pkg = Constants.expoConfig?.android?.package ?? "uz.gtpro.yukekspert";
+  try {
+    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, { data: `package:${pkg}` });
+  } catch {
+    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS).catch(() => {});
   }
 }
 
