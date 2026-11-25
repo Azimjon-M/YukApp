@@ -1,6 +1,7 @@
 // Kirgan foydalanuvchi qismi: yon menyu (☰) + bo'limlar. Har bo'lim — o'z pastki paneli (tabs) bilan:
 //   (asosiy)    → 📋 Yuklar / 🚚 Bo'sh mashinalar · 🎛 Filtr · ⏸ Pauza («🔴 yangi yuklar» belgisi — newLoads.js)
 //   sozlamalar  → «E'lon sozlamalari» · «Hisob sozlamalari»
+//   elon        → 📝 E'lon berish (chat, yuk beruvchi)
 //   haqida      → Dastur haqida (muallif, qo'llab-quvvatlash)
 // Bildirishnoma: token serverga, bosilganda Yuklar / qo'ng'iroq (notify.js), ruxsat so'rash oynasi (NotifyPrompt).
 // Bo'limlar orasida Stack: Android «orqaga» tugmasi oldingi bo'limga qaytaradi.
@@ -24,6 +25,18 @@ export default function AppLayout() {
         }}
       >
         <Stack.Screen name="(asosiy)" />
+        <Stack.Screen
+          name="elon"
+          options={{
+            headerShown: true,
+            title: "E'lon berish",
+            headerLeft: () => <MenuButton />,
+            headerStyle: { backgroundColor: colors.card },
+            headerTintColor: colors.text,
+            headerTitleStyle: { fontWeight: "700" },
+            headerShadowVisible: false,
+          }}
+        />
         <Stack.Screen name="sozlamalar" />
         <Stack.Screen
           name="haqida"

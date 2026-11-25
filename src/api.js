@@ -68,7 +68,7 @@ export async function request(method, path, options = {}) {
   }
 }
 
-async function requestOnce(method, path, { body, token = settings.getToken() } = {}) {
+async function requestOnce(method, path, { body, token = settings.getToken(), timeout = TIMEOUT_MS } = {}) {
   const headers = { accept: "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
   if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
@@ -76,7 +76,7 @@ async function requestOnce(method, path, { body, token = settings.getToken() } =
 
   // AbortController — javob 20 s da kelmasa so'rovni to'xtatadi
   const controller = typeof AbortController === "function" ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), TIMEOUT_MS) : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeout) : null;
   let response;
   try {
     response = await settings.fetch(`${settings.baseUrl}${path}`, {
@@ -139,6 +139,16 @@ export const setActive = (active) => request("PATCH", "/pub/me", { body: { activ
 export const signOut = () => request("POST", "/pub/me/logout");
 // Hisobni o'chirish (botdagi /ochirish → «Hammasini o'chirish» bilan bir xil)
 export const deleteMe = () => request("DELETE", "/pub/me");
+
+// «📝 E'lon berish» chati (yuk beruvchi; server loadChat.js — botdagi «📦 Yuk berish» bilan bir qoida).
+// view = { stage: "confirm" | "phone" | null, text, cards?: [[qator…]], phones?: [{ phone, label }] }
+export const getLoadChat = () => request("GET", "/pub/me/load-chat"); // → { intro, view, used, limit, posts }
+// Matnni tushunish AI'ga ketishi mumkin (20 s gacha) — qayta yuborilmaydi (ikki marta qoralama bo'lmasin)
+export const sendLoadText = (text) => request("POST", "/pub/me/load-chat", { body: { text }, retry: false, timeout: 60_000 });
+export const pickLoadPhone = (phone) => request("POST", "/pub/me/load-chat/phone", { body: { phone }, retry: false });
+export const confirmLoad = () => request("POST", "/pub/me/load-chat/send", { retry: false }); // → { ok, id, text }
+export const cancelLoad = () => request("DELETE", "/pub/me/load-chat");
+export const getLoadResult = (id) => request("GET", `/pub/me/load-chat/posts/${id}`); // → { done, ok, text }
 
 // view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
 export const getLoads = (params = {}) => request("GET", `/pub/loads?${query(params)}`);

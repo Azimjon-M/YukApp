@@ -35,6 +35,14 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   support cards Visa 4231…6273 / Humo 9860…4705 (he asked to show them publicly; tap = copy via expo-clipboard).
   Sidebar layout (2026-11-25, his «tepada Yuklar va Botni ochish … pastda Sozlamalar va dastur haqida»): top group =
   Yuklar + «Botni ochish» with the bot's own Telegram photo `assets/bot.jpg` (160×160, fetched via Bot API); bottom group.
+- **«📝 E'lon berish» chat (2026-11-25, his «Saidbarga E'lon berish qo'sh. Yuklar pastida … chat bo'lsin … bot qanday
+  ishlayotgan bo'lsa qarab ko'r»):** sidebar top group Yuklar → 📝 E'lon berish → Botni ochish; route `(app)/elon.js` →
+  `components/LoadChat.js`: bubbles (bot left / me right), input bar, «Tushunyapman…» while the server parses (POST timeout
+  60 s, no retry), confirm card [✅ Yuborish] [❌ Bekor qilish], phone stage with saved-phone buttons (or type it), after
+  send polls `/pub/me/load-chat/posts/:id` every 3 s for the result. Conversation kept in a module variable (per chatId)
+  until the app closes; the draft itself lives on the server (shared with the bot). Drivers see a notice + «🔄 Rolni
+  almashtirish». Server: YukPlatform `loadChat.js`. Keyboard: KeyboardAvoidingView padding, offset insets.top + 56 —
+  check on the phone.
 - **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
   huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
   «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET

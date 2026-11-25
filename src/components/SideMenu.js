@@ -1,5 +1,5 @@
-// Yon menyu (sidebar): chapdan chiqadigan panel. Ikki qism (Azimjon, 2026-11-25): tepada — 📋 Yuklar (yoki 🚚 Mashinalar)
-// va «Botni ochish» (botning o'z rasmi, assets/bot.jpg); pastda — ⚙️ Sozlamalar va ℹ️ Dastur haqida.
+// Yon menyu (sidebar): chapdan chiqadigan panel. Ikki qism (Azimjon, 2026-11-25): tepada — 📋 Yuklar (yoki 🚚 Mashinalar),
+// 📝 E'lon berish (chat, LoadChat.js) va «Botni ochish» (botning o'z rasmi, assets/bot.jpg); pastda — ⚙️ Sozlamalar va ℹ️ Dastur haqida.
 // Har bo'limning o'z pastki paneli (tabs) bor — masalan Sozlamalar ichida «E'lon» va «Hisob».
 //
 // Nega tayyor Drawer emas: expo-router/drawer react-native-reanimated va gesture-handler talab qiladi — ular C++ qismli
@@ -24,6 +24,7 @@ export const useSideMenu = () => useContext(MenuContext);
 function sectionOf(pathname) {
   if (pathname.startsWith("/sozlamalar")) return "sozlamalar";
   if (pathname.startsWith("/haqida")) return "haqida";
+  if (pathname.startsWith("/elon")) return "elon";
   return "asosiy";
 }
 
@@ -73,6 +74,7 @@ function MenuPanel({ progress, close }) {
   const role = ROLES[me?.role];
 
   const loads = { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) };
+  const post = { id: "elon", icon: "📝", label: "E'lon berish", href: "/elon" };
   const bottom = [
     { id: "sozlamalar", icon: "⚙️", label: "Sozlamalar", href: "/sozlamalar" },
     { id: "haqida", icon: "ℹ️", label: "Dastur haqida", href: "/haqida" },
@@ -122,6 +124,7 @@ function MenuPanel({ progress, close }) {
         {/* Tepa: ish joyi — Yuklar va bot */}
         <View style={styles.items}>
           <MenuItem item={loads} on={current === loads.id} onPress={() => go(loads.href, loads.id)} />
+          <MenuItem item={post} on={current === post.id} onPress={() => go(post.href, post.id)} />
           <Pressable role="button" onPress={openBot} style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
             <Image source={BOT_ICON} style={styles.botIcon} accessibilityIgnoresInvertColors />
             <Text style={styles.itemText}>Botni ochish</Text>
