@@ -117,6 +117,8 @@ function handle(response) {
     Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
     return;
   }
+  // «📲 Yuk Ekspert yangilandi» (server push.js releaseMessage) — ilova ochildi, UpdateGate o'zi tekshiradi
+  if (data.type === "update") return;
   // lenta shu e'lonni topib, tepaga olib keladi (openPost.js). data.item — e'lonning o'zi: serverni kutmasdan darhol ko'rinadi
   setOpenPost(data.postId, data.item);
   router.navigate("/");

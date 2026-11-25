@@ -108,6 +108,14 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `bash /data/ops/yukapp-release.sh` (needs `google-services.json` + `keys/` here, both gitignored) → published at
   `https://yuk.gtpro.uz/pub/app/android`, bot /ilovalar and Mini App «📱 Ilova» (YukPlatform CLAUDE.md). After each
   change: push only; build + version bump ONLY when he says «build qil» (he batches small changes, 2026-11-25).
+- **Forced update (2026-11-25, his «eski versiyada ishlamasin faqat oxirgi versiya … Majburiy bo'lsin»):** every request
+  sends `X-App-Version: <android.versionCode>` (session.js → api.js `appVersion`, Android only); server answers 426
+  `update` when `data/apk/latest.json` is newer. `components/UpdateGate.js` (root `_layout`, above every screen) checks
+  `GET /pub/app` on start / foreground / after a 426 (`appUpdate.js` store) → full-screen Modal, no close:
+  «⬇️ Yangilash» = `File.downloadFileAsync` to cache/apk → legacy `getContentUriAsync` → intent VIEW
+  (`application/vnd.android.package-archive`, FLAG_GRANT_READ) — user taps «O'rnatish»; fallback «🌐 Brauzerda».
+  `REQUEST_INSTALL_PACKAGES` in app.json. Server pushes «📲 Yuk Ekspert yangilandi» (data `type: update`) once per new
+  versionCode. Every release is forced, so a release MUST bump versionCode (release script refuses otherwise).
 - **Workflow from the server (2026-11-24, his «sen o'zgarishlar qilasan, men gitdan olib telefonimga build qilib test qilaman»):**
   Claude also works on a clone at `/data/YukApp` on the YukPlatform server (Linux, next to `/data/YukPlatform`, so
   `@yuk/shared` resolves) — edits, `npm test`, `npx eslint src test`, push to `main`. No Android SDK/phone there: he

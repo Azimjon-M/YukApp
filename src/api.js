@@ -32,6 +32,8 @@ const settings = {
   getToken: () => null,
   onAuthLost: () => {},
   onBlocked: () => {},
+  appVersion: null, // o'rnatilgan versionCode — har so'rovda X-App-Version (appUpdate.js, majburiy yangilash)
+  onUpdate: () => {}, // server 426 «update»: ilova eski
   fetch: (...args) => globalThis.fetch(...args),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 };
@@ -69,6 +71,7 @@ export async function request(method, path, options = {}) {
 async function requestOnce(method, path, { body, token = settings.getToken() } = {}) {
   const headers = { accept: "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
+  if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
   if (body !== undefined) headers["content-type"] = "application/json";
 
   // AbortController — javob 20 s da kelmasa so'rovni to'xtatadi
@@ -98,6 +101,7 @@ async function requestOnce(method, path, { body, token = settings.getToken() } =
   if (response.ok && json) return json;
 
   if (json?.code === "blocked") settings.onBlocked(json.error);
+  if (response.status === 426 && json?.code === "update") settings.onUpdate();
   // Token bilan yuborilgan so'rovga 401 — token eskirgan yoki hisob o'chirilgan. Tokensiz so'rovning 401 i (masalan,
   // kirish) — oddiy xato
   if (response.status === 401 && token) settings.onAuthLost();
@@ -117,6 +121,8 @@ const query = (params) =>
 
 // Kirishsiz: bot nomi, yo'nalish doirasi (scope), a'zo bo'lish kerak bo'lgan kanal/guruhlar (required)
 export const getConfig = () => request("GET", "/pub/config", { token: null });
+// Ilovaning eng so'nggi versiyasi: { android: { version, versionCode, size, url } | null } (appUpdate.js)
+export const getAppRelease = () => request("GET", "/pub/app", { token: null, retry: false });
 
 // Kod bilan kirish (2026-11-24). login — "+998901234567" yoki "@username" (codeLogin.js parseLogin tekshirgan).
 // → { requestId, expiresIn, resendIn, digits } — bot shu odamning Telegram'iga kod yubordi.

@@ -16,6 +16,7 @@ import { useColorScheme } from "react-native";
 import { DarkTheme, DefaultTheme, SplashScreen, Stack, ThemeProvider } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
+import { UpdateGate } from "../components/UpdateGate.js";
 import { SessionProvider, useSession } from "../session.js";
 import { applyScheme, colors, schemeOf } from "../theme.js";
 
@@ -38,6 +39,8 @@ export default function RootLayout() {
       <SessionProvider>
         <SplashController />
         <RootStack key={scheme} />
+        {/* Majburiy yangilash: serverda yangiroq versiya bo'lsa — hamma ekran ustidan (kirish ekrani ham) */}
+        <UpdateGate />
         <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       </SessionProvider>
     </ThemeProvider>
