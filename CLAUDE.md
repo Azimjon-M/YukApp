@@ -124,6 +124,8 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `GET /pub/app` on start / foreground / after a 426 (`appUpdate.js` store) → full-screen Modal, no close:
   «⬇️ Yangilash» = `File.downloadFileAsync` to cache/apk → legacy `getContentUriAsync` → intent VIEW
   (`application/vnd.android.package-archive`, FLAG_GRANT_READ) — user taps «O'rnatish»; fallback «🌐 Brauzerda».
+  0.13.0: progress bar (downloadFileAsync `onProgress`, total = Content-Length or /pub/app size, % + MB); an already
+  fully downloaded APK (same size) is not downloaded again — the installer opens at once.
   `REQUEST_INSTALL_PACKAGES` in app.json. Server pushes «📲 Yuk Ekspert yangilandi» (data `type: update`) once per new
   versionCode. Every release is forced, so a release MUST bump versionCode (release script refuses otherwise).
 - **Workflow from the server (2026-11-24, his «sen o'zgarishlar qilasan, men gitdan olib telefonimga build qilib test qilaman»):**
