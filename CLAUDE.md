@@ -74,6 +74,9 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   cancels the scroll). 0.11.2: the push `body.item` (server sends the card) is inserted at once — no wait; without it a
   centered «Kuting…» overlay after 250 ms. Blue glow and spring are separate animations (a stopped sequence left the
   blue border stuck).
+  0.11.3 (his «tepaga scroll qilsam reload … o'zidan-o'zi eng yangisiga scroll»): after the target scroll the list is in
+  `hold` — `maintainVisibleContentPosition` without `autoscrollToTopThreshold`, so loads arriving later stack ABOVE the
+  target (counted on «↑»), no jump. Released when the user drags up to the top from below, or «↑» goes to the top.
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

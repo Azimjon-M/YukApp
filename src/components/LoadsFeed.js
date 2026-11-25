@@ -28,6 +28,8 @@ const REFRESH_MS = 3_000;
 const AT_TOP = 80; // shundan yuqorida — «tepada»: yangisi o'zi ko'rinadi (ro'yxat tepaga suriladi)
 const SHOW_AT = 300; // shundan pastga tushsa — «↑» tugmasi chiqadi
 const NONE = new Set();
+const FOLLOW = { minIndexForVisible: 0, autoscrollToTopThreshold: AT_TOP };
+const KEEP = { minIndexForVisible: 0 };
 
 const KINDS = {
   // Haydovchiga — botdagidek asl e'lonlar (/pub/feed, AI'siz, hammasi); yuk beruvchiga — bo'sh mashinalar (server 1 soatdan kam bermaydi)
@@ -128,6 +130,18 @@ export function LoadsFeed() {
   const openPost = useOpenPost(); // bildirishnomadan bosilgan e'lon
   const [targetId, setTargetId] = useState(null); // yashil hoshiyali e'lon
   const viewPos = useRef(1); // oxirgi scrollToIndex: 0 — ekran tepasiga, 1 — pastiga
+  // Bildirishnomadan ochilgan e'lon «ushlab turiladi»: undan keyin kelganlar TEPASIGA qo'shiladi (yuqoriga aylantirsa
+  // ko'rinadi, «↑» da soni), ekran o'zidan-o'zi eng yangisiga sakramaydi (Azimjon, 2026-11-25). Foydalanuvchi o'zi tepaga
+  // chiqqanda yoki «↑» bilan eng tepaga o'tganda — odatdagi holat (tepada turganda yangisi o'zi ko'rinadi)
+  const [hold, setHold] = useState(false);
+  const holdRef = useRef(false);
+  const dragged = useRef(false); // foydalanuvchi barmog'i bilan aylantirdimi (scrollToIndex emas)
+  const lastY = useRef(0);
+  const holdOn = (on) => {
+    holdRef.current = on;
+    dragged.current = false;
+    setHold(on);
+  };
   if (known.current === null && state.items.length) known.current = new Set(state.items.map((item) => item.id));
 
   // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
@@ -157,7 +171,7 @@ export function LoadsFeed() {
         known.current = new Set(items.map((item) => item.id));
         setState({ items, fresh, loading: false, refreshing: false, error: null, profileKey });
         itemsRef.current = items;
-        setUnseen((u) => dropUnseen(addUnseen(u, [...fresh], atTop.current), [], items));
+        setUnseen((u) => dropUnseen(addUnseen(u, [...fresh], atTop.current && !holdRef.current), [], items));
         if (focused.current) markSeen(data.items);
       } catch (error) {
         if (id !== request.current) return;
@@ -176,6 +190,7 @@ export function LoadsFeed() {
     itemsRef.current = [];
     setUnseen(NONE);
     jumped.current = false;
+    holdOn(false);
     setState((s) => ({ ...s, items: [], profileKey, loading: true }));
     load();
     // faqat filtr o'zgarganda (load har pauza/yangilanishda yangilanadi — har safar boshidan yuklamasin)
@@ -220,7 +235,14 @@ export function LoadsFeed() {
 
   const onScroll = useCallback((e) => {
     const y = e.nativeEvent.contentOffset.y;
+    const fromBelow = lastY.current >= AT_TOP;
+    lastY.current = y;
     atTop.current = y < AT_TOP;
+    // ushlab turilgan holatda: faqat foydalanuvchi o'zi pastdan tepaga chiqqanda bo'shatiladi
+    if (atTop.current && holdRef.current && dragged.current && fromBelow) {
+      holdRef.current = false;
+      setHold(false);
+    }
     if (atTop.current) {
       jumped.current = false;
       setUnseen(NONE); // tepaga chiqdi — hammasi ko'rildi
@@ -240,6 +262,7 @@ export function LoadsFeed() {
     const target = jumpTarget(items, unseen, jumped.current);
     if (target.top) {
       jumped.current = false;
+      if (holdRef.current) holdOn(false);
       list.scrollToOffset({ offset: 0, animated: true });
       return;
     }
@@ -301,6 +324,7 @@ export function LoadsFeed() {
     const id = items[index].id;
     const timer = setTimeout(() => {
       clearOpenPost();
+      holdOn(true);
       setTargetId(id);
       viewPos.current = 0;
       listRef.current?.scrollToIndex({ index, viewPosition: 0, animated: true });
@@ -377,8 +401,12 @@ export function LoadsFeed() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} colors={[colors.accent]} />}
         ItemSeparatorComponent={Gap}
         // Pastda turganda tepaga yangisi qo'shilsa — ko'rinib turgan karta joyida qoladi; tepada bo'lsa — tepaga suriladi
-        maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: AT_TOP }}
+        // Bildirishnomadan ochilgan e'lon ushlab turilganda — tepaga avto-aylantirish yo'q (yangilari ustida yig'iladi)
+        maintainVisibleContentPosition={hold ? KEEP : FOLLOW}
         onScroll={onScroll}
+        onScrollBeginDrag={() => {
+          dragged.current = true;
+        }}
         scrollEventThrottle={100}
         viewabilityConfig={viewability}
         onViewableItemsChanged={onViewable}
