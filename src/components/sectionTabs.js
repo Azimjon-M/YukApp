@@ -12,7 +12,7 @@ export const tabIcon = (emoji) =>
 // Funksiya — har chizilishda joriy rejim (yorug'/qorong'i) ranglari olinadi (screenOptions funksiyani ham qabul qiladi)
 // insets — pastdagi tizim tugmalari (back/home) balandligi: panel shuncha yuqoriroq, yozuvlarga joy yetadi.
 // Avval faol tab box'i (margin) standart 49 px panelda yozuvni pastga siqib chiqarib yuborgan edi (2026-11-25)
-export const TAB_BAR_HEIGHT = 64;
+export const TAB_BAR_HEIGHT = 68;
 export const sectionTabOptions = (insets = { bottom: 0 }) => ({
   headerLeft: () => <MenuButton />,
   headerTintColor: colors.text,
@@ -21,7 +21,9 @@ export const sectionTabOptions = (insets = { bottom: 0 }) => ({
   tabBarActiveTintColor: colors.accent,
   tabBarInactiveTintColor: colors.text,
   tabBarActiveBackgroundColor: colors.tabActive,
-  tabBarItemStyle: { borderRadius: 16, marginHorizontal: 6, marginVertical: 5, paddingVertical: 4 },
+  // Fon ichki tugmaga burchaksiz chiziladi — yumaloq shaklni tashqi qobiq kesib beradi (overflow: hidden).
+  // 68 − 2×5 (margin) = 58 px: belgi (28) + yozuv (~16) + ichki padding (2×5) sig'adi
+  tabBarItemStyle: { borderRadius: 18, marginHorizontal: 8, marginVertical: 5, overflow: "hidden" },
   tabBarLabelStyle: { fontSize: 12, fontWeight: "600" },
   headerStyle: { backgroundColor: colors.card },
   headerTitleStyle: { fontWeight: "700" },
