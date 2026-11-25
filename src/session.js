@@ -5,11 +5,11 @@
 //   scope:  yo'nalish doirasi (serverdagi ROUTE_SCOPE) — sozlamalar matni shunga qarab yoziladi
 // Ilova ochilganda: xotirada token bormi → bor bo'lsa GET /pub/me. Token 30 kun amal qiladi; eskirsa server 401 beradi
 // va ilova kirish ekraniga qaytadi (api.js onAuthLost).
-import { createContext, use, useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { validRouteScope } from "@yuk/shared";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { configureApi, getConfig, getMe } from "./api.js";
+import { configureApi, getConfig, getMe, setRole } from "./api.js";
 import { markStale } from "./appUpdate.js";
 import { readCache, writeCache } from "./cache.js";
 import { loadToken, saveToken } from "./storage.js";
@@ -108,6 +108,22 @@ export function SessionProvider({ children }) {
 
   // Server yangi me qaytardi (rol, pauza, yo'nalish ...)
   const setMe = useCallback((me) => setState((s) => (s.status === "in" ? { ...s, me } : s)), []);
+
+  // Ilovada rol yo'q (Azimjon, 2026-11-25: «Ilovamizda Rol narsa bo'lmasin!»): ilova — yuklar lentasi, e'lon berish esa hammaga.
+  // Server lentani haydovchi roli bilan beradi, shuning uchun rol tanlamagan (yoki botda yuk beruvchi bo'lgan) foydalanuvchi
+  // ilovaga kirishi bilan jimgina haydovchi qilinadi (har rolning sozlamalari serverda saqlanadi — botda qaytsa tiklanadi)
+  const fixing = useRef(false);
+  useEffect(() => {
+    const me = state.me;
+    if (state.status !== "in" || !me || me.role === "haydovchi" || fixing.current) return;
+    fixing.current = true;
+    setRole("haydovchi")
+      .then((updated) => setState((s) => (s.status === "in" ? { ...s, me: updated?.chatId ? updated : { ...s.me, role: "haydovchi" } } : s)))
+      .catch(() => {})
+      .finally(() => {
+        fixing.current = false;
+      });
+  }, [state.status, state.me]);
 
   // Ko'rinib turgan ma'lumotni serverdan qayta olish (masalan, botda nimadir o'zgartirgan bo'lsa)
   const refreshMe = useCallback(async () => {

@@ -1,8 +1,7 @@
 // Sozlamalar → «👤 Hisob sozlamalari»: kim kirgan, obuna, telefon; rolni almashtirish, hisobdan chiqish, o'chirish.
 import { Alert, RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
 import Constants from "expo-constants";
-import { router } from "expo-router";
-import { PLANS, ROLES, formatContactPhone } from "@yuk/shared";
+import { PLANS, formatContactPhone } from "@yuk/shared";
 import { API_URL, PROD_API_URL, deleteMe, signOut } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { useSession } from "../../../session.js";
@@ -13,7 +12,6 @@ export default function AccountSettingsScreen() {
   const { me, botUsername, refreshMe, leave } = useSession();
   const { busy, run } = useRunner();
   const { refreshing, onRefresh } = usePullRefresh(refreshMe);
-  const role = me.role;
 
   // Ikki xil chiqish: faqat shu telefondan (bot ishlashda davom etadi) yoki butunlay (bot ham yubormaydi — Mini App'dagi
   // «🚪 Chiqish» bilan bir xil, qayta kirib rol tanlasa sozlamalari tiklanadi)
@@ -50,13 +48,11 @@ export default function AccountSettingsScreen() {
       <Section title="👤 Hisob">
         <Text style={styles.name}>{me.name || "Ismsiz"}</Text>
         {me.username ? <Hint>@{me.username}</Hint> : null}
-        <Row icon={ROLES[role]?.icon ?? "❔"} label="Rol" value={ROLES[role]?.name ?? "tanlanmagan"} />
         <Row icon="⭐" label="Obuna" value={PLANS[me.plan]?.name ?? me.plan} />
         <Row icon="📱" label="Telefon" value={me.phone ? formatContactPhone(me.phone) : "ulashilmagan (botda /raqam)"} />
       </Section>
 
       <Section title="⚙️ Boshqa">
-        <Button title="🔄 Rolni almashtirish" kind="secondary" onPress={() => router.push("/rol")} disabled={busy != null} />
         <Button title="🚪 Hisobdan chiqish" kind="secondary" onPress={askSignOut} busy={busy === "signout"} disabled={busy != null} />
         <Button title="🗑 Hisobni o'chirish" kind="danger" onPress={askDelete} busy={busy === "delete"} disabled={busy != null} />
       </Section>

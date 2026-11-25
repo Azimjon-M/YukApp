@@ -43,6 +43,18 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   until the app closes; the draft itself lives on the server (shared with the bot). Drivers see a notice + «🔄 Rolni
   almashtirish». Server: YukPlatform `loadChat.js`. Keyboard: KeyboardAvoidingView padding, offset insets.top + 56 —
   check on the phone.
+- **No roles in the app (2026-11-25, his «Ilovamizda Rol narsa bo'lmasin! Saidbardagi Haydovchini yo'qot! uni o'rniga
+  Obuna»):** `rol.js` deleted, (app) guarded by `signedIn` only, Hisob has no role row/button; `session.js` silently
+  `PUT /pub/me/role haydovchi` for any signed-in user whose role isn't haydovchi (server feed is driver-only; each role's
+  settings stay stashed on the server — a bot shipper who opens the app becomes a driver in the bot too; shippers ≈ 0).
+  Sidebar badge = «⭐ Pro obuna» / «🆓 Obuna: Bepul» (`me.plan`). E'lon berish is open to everyone (server load-chat has
+  no role check; the poster never receives his own load — pipeline skips `post.shipper`).
+- **E'lon berish: voice + guide (same day, his «Chat yoki audio yozib oladigan bo'lsin. Tepaga obrazavanya qo'y (nma
+  yozish / nmani aytish)»):** `LoadChat.js` list header `Guide` (collapsible: 📍📦🚚💰📞 lines with samples + a sentence to
+  say). 🎤 button when the input is empty: `expo-audio` (plugin in app.json → RECORD_AUDIO) `useAudioRecorder` AAC-ADTS mono
+  16 kHz 32 kbps; recording bar «🗑 · 0:07 · ➤», ≥ 1.5 s, auto-send at 2 min; upload = `new File(uri).upload(url,
+  {BINARY_CONTENT})` with `api.js` `uploadHeaders("audio/aac")` / `readUpload` → server `POST /pub/me/load-chat/voice`
+  (Gemini transcription, YukPlatform server.js `transcribeVoice`) → `{transcript, view}`; my bubble shows «🎤 N s «text»».
 - **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
   huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
   «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET

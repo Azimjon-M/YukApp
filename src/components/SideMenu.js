@@ -10,7 +10,7 @@ import { Animated, Easing, Image, Linking, Modal, Pressable, StyleSheet, Text, u
 import { router, usePathname } from "expo-router";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ROLES } from "@yuk/shared";
+import { PLANS } from "@yuk/shared";
 import { badgeText, useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, space, themed } from "../theme.js";
@@ -71,7 +71,8 @@ function MenuPanel({ progress, close }) {
   const panelWidth = Math.min(320, Math.round(width * 0.82));
   const current = sectionOf(pathname);
   const shipper = me?.role === "yuk_beruvchi";
-  const role = ROLES[me?.role];
+  // Rol o'rniga — obuna (ilovada rol yo'q, Azimjon 2026-11-25: «Haydovchini yo'qot! uni o'rniga Obuna»)
+  const pro = me?.plan === "pro";
 
   const loads = { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) };
   const post = { id: "elon", icon: "📝", label: "E'lon berish", href: "/elon" };
@@ -112,13 +113,9 @@ function MenuPanel({ progress, close }) {
             {me?.name || "Ismsiz"}
           </Text>
           {me?.username ? <Text style={styles.username}>@{me.username}</Text> : null}
-          {role ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {role.icon} {role.name}
-              </Text>
-            </View>
-          ) : null}
+          <View style={[styles.badge, pro && styles.badgePro]}>
+            <Text style={styles.badgeText}>{pro ? "⭐ Pro obuna" : `🆓 Obuna: ${PLANS.free.name}`}</Text>
+          </View>
         </View>
 
         {/* Tepa: ish joyi — Yuklar va bot */}
@@ -226,6 +223,7 @@ const styles = themed(() =>
     paddingVertical: 4,
   },
   badgeText: { fontSize: 13, fontWeight: "600", color: "#fff" },
+  badgePro: { backgroundColor: "rgba(255,196,0,0.35)" },
   items: { flex: 1, paddingVertical: space.md, paddingHorizontal: space.sm, gap: 2 },
   item: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: 13, paddingHorizontal: space.lg, borderRadius: 12 },
   itemOn: { backgroundColor: colors.soft },

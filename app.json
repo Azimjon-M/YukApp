@@ -44,6 +44,13 @@
         }
       ],
       [
+        "expo-audio",
+        {
+          "microphonePermission": "E'lonni ovoz bilan aytish uchun mikrofon kerak",
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
         "expo-notifications",
         {
           "icon": "./assets/android-icon-monochrome.png",

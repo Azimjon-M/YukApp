@@ -2,19 +2,43 @@
 // Botdagi «📦 Yuk berish» bilan bir xil yo'l (server loadChat.js):
 //   yukingizni oddiy yozasiz → server tushunadi → raqam yo'q bo'lsa so'raydi (oldingi raqamlaringiz tugma) →
 //   «haydovchilarga shunday boradi» kartasi + [✅ Yuborish] [❌ Bekor qilish] → navbat → natija («N ta haydovchiga yuborildi»).
-// Faqat yuk beruvchi uchun (haydovchiga — rolni almashtirish taklifi). Qoralama serverda: botda boshlangani shu yerda ham
-// davom etadi. Suhbat xotirada (modul darajasida) — boshqa bo'limga o'tib qaytsa ham turadi, ilova yopilsa — tozalanadi.
+// Ilovada rol yo'q — e'lonni har kim beradi (2026-11-25). Yozib yoki 🎤 ovoz bilan (ilova yozib oladi → server Gemini bilan
+// matnga o'giradi → shu yo'l). Tepada «Qanday yozish / aytish» namunasi (Azimjon: «e'lonni oson olishimiz kerak … E'lon
+// beruvchiga qulaylik kerak»). Qoralama serverda: botda boshlangani shu yerda ham davom etadi. Suhbat xotirada (modul darajasida) — boshqa bo'limga o'tib qaytsa ham turadi, ilova yopilsa — tozalanadi.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
+import { File, UploadType } from "expo-file-system";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { cancelLoad, confirmLoad, getLoadChat, getLoadResult, pickLoadPhone, sendLoadText } from "../api.js";
+import { cancelLoad, confirmLoad, getLoadChat, getLoadResult, pickLoadPhone, readUpload, sendLoadText, uploadHeaders } from "../api.js";
 import { useSession } from "../session.js";
+import { toast } from "../toast.js";
 import { colors, radius, space, themed } from "../theme.js";
-import { Button, Notice } from "../ui.js";
+import { Button } from "../ui.js";
 
 const POLL_MS = 3_000; // yuborilgan yuk natijasini so'rash oralig'i
 const POLL_MAX = 40; // ~2 daqiqa
+const VOICE_MAX_MS = 120_000; // ovoz ko'pi bilan 2 daqiqa
+const VOICE_MIN_MS = 1_500;
+// Ovoz: AAC (ADTS) mono 16 kHz — kichik fayl (~4 KB/s), Gemini «audio/aac» ni o'qiydi
+const VOICE_OPTIONS = {
+  ...RecordingPresets.HIGH_QUALITY,
+  extension: ".aac",
+  sampleRate: 16000,
+  numberOfChannels: 1,
+  bitRate: 32000,
+  android: { extension: ".aac", outputFormat: "aac_adts", audioEncoder: "aac", sampleRate: 16000 },
+};
+
+// Tepadagi namuna: nima yozish / nima aytish (eng muhimi — qayerdan, qayerga, nima, necha tonna, raqam)
+const GUIDE = [
+  ["📍", "Qayerdan → qayerga", "Andijondan Toshkentga"],
+  ["📦", "Nima yuk, necha tonna", "20 tonna un"],
+  ["🚚", "Qanday mashina", "tent fura"],
+  ["💰", "Narxi, qachon", "3 mln, ertaga"],
+  ["📞", "Telefon", "90 123 45 67"],
+];
+const SAY = "«Andijondan Toshkentga 20 tonna un bor, tent fura kerak, 3 million, ertaga. Telefon 90 123 45 67»";
 
 // Suhbat xabarlari: { id, from: "bot" | "me", text, cards?, stage?, phones?, done? (tugmalari ishlatildi) }
 let saved = { chatId: null, items: [] };
@@ -24,7 +48,6 @@ const msg = (from, text, extra = {}) => ({ id: nextId++, from, text, ...extra })
 export function LoadChat() {
   const { me } = useSession();
   const insets = useSafeAreaInsets();
-  const shipper = me?.role === "yuk_beruvchi";
   const [items, setItems] = useState(() => (saved.chatId === me?.chatId ? saved.items : []));
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false); // server javobini kutyapmiz
@@ -49,7 +72,7 @@ export function LoadChat() {
 
   // Birinchi ochilish: salomlashish + (bo'lsa) tugallanmagan qoralama
   useEffect(() => {
-    if (!shipper || items.length) return;
+    if (items.length) return;
     getLoadChat()
       .then((data) => {
         if (!alive.current) return;
@@ -59,7 +82,7 @@ export function LoadChat() {
       .catch((error) => add(msg("bot", `⚠️ ${error.message}`)));
     // faqat bir marta
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shipper]);
+  }, []);
 
   // Yuborilgan yuk natijasini kutish (bot ishchisi bir necha soniyada yuboradi)
   const waitResult = useCallback(
@@ -117,18 +140,62 @@ export function LoadChat() {
     run(async () => add(msg("bot", (await cancelLoad()).text)));
   };
 
-  if (!shipper) {
-    return (
-      <View style={[styles.page, styles.pad]}>
-        <Notice title="📝 E'lon berish — yuk beruvchilar uchun" action={<Button title="🔄 Rolni almashtirish" onPress={() => router.push("/rol")} />}>
-          Yukingiz bo'lsa va unga mashina kerak bo'lsa — rolni «📦 Yuk beruvchi» ga almashtiring. Keyin yukingizni shu yerga oddiy
-          yozasiz, mos haydovchilar o'zlari qo'ng'iroq qiladi.
-        </Notice>
-      </View>
-    );
-  }
+  // --- 🎤 Ovoz ---
+  const recorder = useAudioRecorder(VOICE_OPTIONS);
+  const rec = useAudioRecorderState(recorder, 200);
+  const recording = rec.isRecording;
+  const startVoice = async () => {
+    if (busy || recording) return;
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        if (!perm.canAskAgain) {
+          toast("Mikrofonga ruxsat yo'q — sozlamalardan yoqing");
+          Linking.openSettings().catch(() => {});
+        } else toast("Ovoz yozish uchun mikrofonga ruxsat bering");
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      toast("Ovoz yozib bo'lmadi — yozib yuboring");
+    }
+  };
+  const stopRecorder = async () => {
+    await recorder.stop().catch(() => {});
+    await setAudioModeAsync({ allowsRecording: false }).catch(() => {});
+    return recorder.uri;
+  };
+  const cancelVoice = async () => {
+    await stopRecorder();
+    toast("🗑 Ovoz bekor qilindi");
+  };
+  const sendVoice = async () => {
+    const ms = rec.durationMillis;
+    const uri = await stopRecorder();
+    if (!uri || ms < VOICE_MIN_MS) {
+      toast("Juda qisqa — tugmani bosib, yukingizni aytib bering");
+      return;
+    }
+    closeButtons();
+    const seconds = Math.round(ms / 1000);
+    run(async () => {
+      const { url, headers } = uploadHeaders("audio/aac");
+      const result = readUpload(await new File(uri).upload(url, { httpMethod: "POST", uploadType: UploadType.BINARY_CONTENT, headers }));
+      add(msg("me", `🎤 ${seconds} s\n«${result.transcript}»`), botView(result.view));
+    });
+  };
+  // 2 daqiqadan oshsa — o'zi yuboriladi
+  useEffect(() => {
+    if (!recording || rec.durationMillis < VOICE_MAX_MS) return undefined;
+    const timer = setTimeout(sendVoice, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, rec.durationMillis]);
 
   const data = busy ? [...items, { id: "typing", from: "bot", typing: true }] : items;
+  const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}`;
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior="padding" keyboardVerticalOffset={insets.top + 56}>
@@ -139,31 +206,81 @@ export function LoadChat() {
         data={data}
         keyExtractor={(item) => String(item.id)}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+        ListHeaderComponent={<Guide />}
         renderItem={({ item }) => <Bubble item={item} onPhone={choosePhone} onConfirm={confirm} onCancel={cancel} busy={busy} />}
         keyboardShouldPersistTaps="handled"
       />
       {quota ? <Text style={styles.quota}>24 soatda {quota.used} / {quota.limit} ta yuk</Text> : null}
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
-        <TextInput
-          style={styles.input}
-          value={text}
-          onChangeText={setText}
-          placeholder="Yukingizni yozing…"
-          placeholderTextColor={colors.hint}
-          multiline
-          maxLength={3000}
-        />
-        <Pressable
-          role="button"
-          aria-label="Yuborish"
-          onPress={send}
-          disabled={busy || !text.trim()}
-          style={({ pressed }) => [styles.sendBtn, (busy || !text.trim()) && styles.sendOff, pressed && styles.pressed]}
-        >
-          <Text style={styles.sendIcon}>➤</Text>
-        </Pressable>
+        {recording ? (
+          <>
+            <Pressable role="button" aria-label="Bekor qilish" onPress={cancelVoice} style={({ pressed }) => [styles.roundBtn, styles.trashBtn, pressed && styles.pressed]}>
+              <Text style={styles.sendIcon}>🗑</Text>
+            </Pressable>
+            <View style={styles.recBox}>
+              <View style={styles.recDot} />
+              <Text style={styles.recText}>
+                {clock(rec.durationMillis)} · Gapiring… tugatgach ➤ ni bosing
+              </Text>
+            </View>
+            <Pressable role="button" aria-label="Ovozni yuborish" onPress={sendVoice} style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}>
+              <Text style={styles.sendIcon}>➤</Text>
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <TextInput
+              style={styles.input}
+              value={text}
+              onChangeText={setText}
+              placeholder="Yukingizni yozing yoki 🎤 bosib ayting…"
+              placeholderTextColor={colors.hint}
+              multiline
+              maxLength={3000}
+              editable={!busy}
+            />
+            {text.trim() ? (
+              <Pressable role="button" aria-label="Yuborish" onPress={send} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.sendOff, pressed && styles.pressed]}>
+                <Text style={styles.sendIcon}>➤</Text>
+              </Pressable>
+            ) : (
+              <Pressable role="button" aria-label="Ovoz yozish" onPress={startVoice} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.sendOff, pressed && styles.pressed]}>
+                <Text style={styles.sendIcon}>🎤</Text>
+              </Pressable>
+            )}
+          </>
+        )}
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+// Tepadagi namuna (yopib-ochsa bo'ladi): nima yozish va nima aytish
+function Guide() {
+  const [open, setOpen] = useState(true);
+  return (
+    <View style={styles.guide}>
+      <Pressable role="button" onPress={() => setOpen((v) => !v)} style={styles.guideHead}>
+        <Text style={styles.guideTitle}>💡 E'lonni qanday berish kerak?</Text>
+        <Text style={styles.guideToggle}>{open ? "Yopish ▲" : "Ochish ▼"}</Text>
+      </Pressable>
+      {open ? (
+        <>
+          <Text style={styles.guideSub}>✍️ Yozing — shu narsalarni bitta xabarda:</Text>
+          {GUIDE.map(([icon, what, sample]) => (
+            <View key={what} style={styles.guideRow}>
+              <Text style={styles.guideIcon}>{icon}</Text>
+              <Text style={styles.guideText}>
+                <Text style={styles.bold}>{what}</Text> — {sample}
+              </Text>
+            </View>
+          ))}
+          <Text style={styles.guideSub}>🎤 Yoki mikrofonni bosib, shunday ayting:</Text>
+          <Text style={styles.guideSay}>{SAY}</Text>
+          <Text style={styles.guideNote}>Raqamni aytmasangiz — keyin so'raymiz. Yuborishdan oldin haydovchilarga qanday borishini ko'rasiz.</Text>
+        </>
+      ) : null}
+    </View>
   );
 }
 
@@ -214,7 +331,6 @@ function Bubble({ item, onPhone, onConfirm, onCancel, busy }) {
 const styles = themed(() =>
   StyleSheet.create({
     page: { flex: 1, backgroundColor: colors.bg },
-    pad: { padding: space.md },
     list: { padding: space.md, gap: space.sm },
     bubble: { maxWidth: "88%", borderRadius: radius + 2, paddingVertical: space.sm, paddingHorizontal: space.md, gap: space.sm },
     bot: { alignSelf: "flex-start", backgroundColor: colors.card, borderTopLeftRadius: 4 },
@@ -249,7 +365,22 @@ const styles = themed(() =>
       color: colors.text,
       backgroundColor: colors.bg,
     },
-    sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+    roundBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+    trashBtn: { backgroundColor: colors.error },
+    recBox: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, borderRadius: 22, backgroundColor: colors.bg },
+    recDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.error },
+    recText: { flex: 1, fontSize: 14, color: colors.text, fontWeight: "600" },
+    guide: { backgroundColor: colors.card, borderRadius: radius + 2, padding: space.md, gap: 6, marginBottom: space.sm, borderWidth: 1, borderColor: colors.barBorder },
+    guideHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    guideTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+    guideToggle: { fontSize: 13, color: colors.accent, fontWeight: "600" },
+    guideSub: { fontSize: 14, fontWeight: "600", color: colors.text, marginTop: 4 },
+    guideRow: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
+    guideIcon: { fontSize: 15, width: 22 },
+    guideText: { flex: 1, fontSize: 14, lineHeight: 20, color: colors.text },
+    guideSay: { fontSize: 14, lineHeight: 20, color: colors.text, fontStyle: "italic", backgroundColor: colors.soft, borderRadius: radius, padding: space.sm },
+    guideNote: { fontSize: 13, lineHeight: 18, color: colors.hint },
+    bold: { fontWeight: "700" },
     sendOff: { opacity: 0.4 },
     sendIcon: { color: colors.accentText, fontSize: 20, fontWeight: "700" },
     pressed: { opacity: 0.6 },

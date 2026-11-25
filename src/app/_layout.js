@@ -4,8 +4,8 @@
 // ochiq ekranga o'tadi):
 //   loading / blocked / offline → holat.js  (kutish, «Uzr...», «Aloqa yo'q»)
 //   out                         → login.js  («Telegram orqali kirish»)
-//   in, rol tanlanmagan         → rol.js    («Kim sifatida foydalanasiz?»)
-//   in, rol bor                 → (app)     (☰ yon menyu: Yuklar · Sozlamalar · Dastur haqida), yonalish.js, rol.js
+//   in                          → (app)     (☰ yon menyu: Yuklar · E'lon berish · Sozlamalar · Dastur haqida), yonalish.js
+//   Ilovada rol yo'q (2026-11-25): session.js kirgan foydalanuvchini jimgina haydovchi qiladi, rol.js ekrani ishlatilmaydi
 //
 // Yorug'/qorong'i rejim: telefon sozlamasiga qaraydi (app.json userInterfaceStyle: "automatic"). Rejim almashsa —
 // theme.js ranglari almashadi va butun ilova (key) qaytadan chiziladi. Tepadagi status bar matni va fon ham shunga mos.
@@ -54,9 +54,8 @@ function SplashController() {
 }
 
 function RootStack() {
-  const { status, me } = useSession();
+  const { status } = useSession();
   const signedIn = status === "in";
-  const hasRole = signedIn && Boolean(me?.role);
   return (
     <Stack
       screenOptions={{
@@ -66,13 +65,9 @@ function RootStack() {
         contentStyle: { backgroundColor: colors.bg },
       }}
     >
-      <Stack.Protected guard={hasRole}>
+      <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen name="yonalish" options={{ title: "Yo'nalish" }} />
-      </Stack.Protected>
-      <Stack.Protected guard={signedIn}>
-        {/* Birinchi marta — sarlavhasiz (orqaga qaytadigan joy yo'q); Sozlamalardan almashtirishda — sarlavha bilan */}
-        <Stack.Screen name="rol" options={{ title: "Rolni almashtirish", headerShown: hasRole }} />
       </Stack.Protected>
       <Stack.Protected guard={status === "out"}>
         <Stack.Screen name="login" options={{ headerShown: false }} />

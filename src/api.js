@@ -147,6 +147,30 @@ export const getLoadChat = () => request("GET", "/pub/me/load-chat"); // → { i
 export const sendLoadText = (text) => request("POST", "/pub/me/load-chat", { body: { text }, retry: false, timeout: 60_000 });
 export const pickLoadPhone = (phone) => request("POST", "/pub/me/load-chat/phone", { body: { phone }, retry: false });
 export const confirmLoad = () => request("POST", "/pub/me/load-chat/send", { retry: false }); // → { ok, id, text }
+// Ovozli e'lon (LoadChat.js fayl yuklaydi — fetch emas, expo-file-system upload): manzil, sarlavhalar va javobni o'qish shu yerda,
+// api.js qoidalari (token, X-App-Version, 401/403/426) bir joyda qolsin
+export const LOAD_VOICE_PATH = "/pub/me/load-chat/voice";
+export function uploadHeaders(contentType) {
+  const headers = { accept: "application/json", "content-type": contentType };
+  const token = settings.getToken();
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
+  return { url: `${settings.baseUrl}${LOAD_VOICE_PATH}`, headers };
+}
+// upload javobi { status, body } → { transcript, view } yoki ApiError
+export function readUpload({ status, body }) {
+  let json = null;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    json = null;
+  }
+  if (status >= 200 && status < 300 && json) return json;
+  if (json?.code === "blocked") settings.onBlocked(json.error);
+  if (status === 401) settings.onAuthLost();
+  if (status === 426 && json?.code === "update") settings.onUpdate();
+  throw new ApiError(json?.error ?? "Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status, code: json?.code ?? (json ? null : "offline") });
+}
 export const cancelLoad = () => request("DELETE", "/pub/me/load-chat");
 export const getLoadResult = (id) => request("GET", `/pub/me/load-chat/posts/${id}`); // → { done, ok, text }
 
