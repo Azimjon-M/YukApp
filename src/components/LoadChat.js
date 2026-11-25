@@ -98,6 +98,30 @@ export function LoadChat() {
   const [waitUntil, setWaitUntil] = useState(0); // natija kutilyapti (shu vaqtgacha so'raymiz)
   const listRef = useRef(null);
   const alive = useRef(true);
+  // 📌 Qo'llanma pin (Telegram'dagi «pinned message»): chat tepasidagi «E'lonni qanday berish kerak?» ko'rinmay qolsa
+  // tepada 1 qator bo'lib turadi, bossa — chat boshiga qaytadi (Azimjon, 2026-11-25)
+  const [guideOpen, setGuideOpen] = useState(true);
+  const [pinned, setPinned] = useState(false);
+  const metrics = useRef({ offset: 0, layout: 0, content: 0, guide: 0 });
+  const checkPin = useCallback(() => {
+    const { offset, layout, content, guide } = metrics.current;
+    // Ro'yxat teskari: qo'llanma eng oxirida (ekranda eng tepada). Uning tepagacha qolgan masofa ≥ balandligi → ko'rinmaydi
+    const fromTop = content - offset - layout;
+    const hidden = guide > 0 && layout > 0 && fromTop > guide - 12;
+    setPinned((v) => (v === hidden ? v : hidden));
+  }, []);
+  const onScroll = useCallback(
+    (e) => {
+      const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+      metrics.current = { ...metrics.current, offset: contentOffset.y, layout: layoutMeasurement.height, content: contentSize.height };
+      checkPin();
+    },
+    [checkPin],
+  );
+  const toGuide = () => {
+    setGuideOpen(true);
+    listRef.current?.scrollToEnd({ animated: true });
+  };
   const lastId = messages.filter((m) => !m.local).reduce((max, m) => Math.max(max, m.id), 0);
 
   useEffect(() => {
@@ -330,6 +354,16 @@ export function LoadChat() {
       <View style={styles.headShadow} pointerEvents="none" />
       <FlatList
         ref={listRef}
+        onScroll={onScroll}
+        scrollEventThrottle={32}
+        onLayout={(e) => {
+          metrics.current.layout = e.nativeEvent.layout.height;
+          checkPin();
+        }}
+        onContentSizeChange={(w, h) => {
+          metrics.current.content = h;
+          checkPin();
+        }}
         style={styles.page}
         contentContainerStyle={styles.list}
         data={all}
@@ -337,7 +371,14 @@ export function LoadChat() {
         keyExtractor={(item) => String(item.id)}
         ListFooterComponent={
           <>
-            <Guide />
+            <View
+              onLayout={(e) => {
+                metrics.current.guide = e.nativeEvent.layout.height;
+                checkPin();
+              }}
+            >
+              <Guide open={guideOpen} onToggle={() => setGuideOpen((v) => !v)} />
+            </View>
             {intro ? <Bubble item={{ id: "intro", from: "bot", text: intro }} /> : null}
           </>
         }
@@ -355,6 +396,18 @@ export function LoadChat() {
         )}
         keyboardShouldPersistTaps="handled"
       />
+      {pinned ? (
+        <Pressable role="button" onPress={toGuide} style={styles.pin} accessibilityLabel="Qo'llanmaga qaytish">
+          <View style={styles.pinStripe} />
+          <View style={styles.pinBody}>
+            <Text style={styles.pinTitle}>📌 E'lonni qanday berish kerak?</Text>
+            <Text style={styles.pinText} numberOfLines={1}>
+              {GUIDE.map(([, , sample]) => sample).join(", ")}
+            </Text>
+          </View>
+          <Text style={styles.pinArrow}>↑</Text>
+        </Pressable>
+      ) : null}
       {quota ? <Text style={styles.quota}>24 soatda {quota.used} / {quota.limit} ta yuk</Text> : null}
 
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]}>
@@ -434,11 +487,10 @@ function MicIcon() {
 }
 
 // Tepadagi namuna (yopib-ochsa bo'ladi): nima yozish va nima aytish
-function Guide() {
-  const [open, setOpen] = useState(true);
+function Guide({ open, onToggle }) {
   return (
     <View style={styles.guide}>
-      <Pressable role="button" onPress={() => setOpen((v) => !v)} style={styles.guideHead}>
+      <Pressable role="button" onPress={onToggle} style={styles.guideHead}>
         <Text style={styles.guideTitle}>💡 E'lonni qanday berish kerak?</Text>
         <Text style={styles.guideToggle}>{open ? "Yopish ▲" : "Ochish ▼"}</Text>
       </Pressable>
@@ -589,6 +641,32 @@ const styles = themed(() =>
       shadowOffset: { width: 0, height: 3 },
     },
     list: { padding: space.md, gap: space.sm },
+    pin: {
+      position: "absolute",
+      top: 1,
+      left: 0,
+      right: 0,
+      zIndex: 3,
+      elevation: 5,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      paddingVertical: 6,
+      paddingRight: space.md,
+      paddingLeft: space.md,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.line,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 4,
+      shadowOffset: { width: 0, height: 2 },
+    },
+    pinStripe: { width: 3, alignSelf: "stretch", borderRadius: 2, backgroundColor: colors.accent },
+    pinBody: { flex: 1, gap: 1 },
+    pinTitle: { fontSize: 13, fontWeight: "700", color: colors.accent },
+    pinText: { fontSize: 13, color: colors.text },
+    pinArrow: { fontSize: 18, color: colors.hint, fontWeight: "700" },
     bubble: { maxWidth: "86%", borderRadius: radius + 4, paddingTop: space.sm, paddingBottom: 6, paddingHorizontal: space.md, gap: 6 },
     bot: { alignSelf: "flex-start", backgroundColor: colors.card, borderBottomLeftRadius: 4 },
     me: { alignSelf: "flex-end", backgroundColor: colors.accent, borderBottomRightRadius: 4 },
