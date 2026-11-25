@@ -1,8 +1,8 @@
 // «Kod bilan kirish» (2026-11-24): telefon raqami yoki @username → bot Telegram'ga kod yuboradi → kod ilovaga yoziladi.
-// Qadamlar mantig'i — src/codeLogin.js. Bizda yo'q odamga (yoki kanal/guruhga a'zo bo'lmaganga) shu ekranning o'zida
-// «Ro'yxatdan o'tish» yo'riqnomasi: botga Start → kanal va guruhga a'zo bo'lish → qaytib kirish.
+// Qadamlar mantig'i — src/codeLogin.js. Ekran (Azimjon, 2026-11-26): tepada ilova logosi va qisqa ma'lumot, «Kirish» —
+// raqam yoki username, «Ro'yxatdan o'tish» — bitta «Bot orqali» tugmasi (botga o'tadi). Kanal/guruh haqida gap yo'q.
 import { useEffect, useRef, useState } from "react";
-import { Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { requestLoginCode, verifyLoginCode } from "../api.js";
 import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
@@ -10,21 +10,14 @@ import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
 
-// Server /pub/config da required bermasa (eski server) — shu ro'yxat. Bot REQUIRED_CHATS bilan bir xil
-const DEFAULT_REQUIRED = [
-  { title: "Yuk Ekspert kanali", url: "https://t.me/Yuk_Ekspert" },
-  { title: "Yuk Ekspert guruhi", url: "https://t.me/Yuk_Ekspert_chat" },
-];
+const LOGO = require("../../assets/icon.png");
 
-// "@kanal" yoki { id, title, url } → { title, url }
-function chatLink(item) {
-  if (typeof item === "string") {
-    const name = item.replace(/^@/, "");
-    return { title: `@${name}`, url: `https://t.me/${name}` };
-  }
-  const name = String(item?.id ?? "").replace(/^@/, "");
-  return { title: item?.title || (name ? `@${name}` : "Kanal"), url: item?.url || (name ? `https://t.me/${name}` : null) };
-}
+// Kirib bo'lmadi — nima qilish kerak (qisqa; qolganini bot o'zi aytadi)
+const PROBLEM_TEXT = {
+  not_found: "Bu raqam yoki username bizda yo'q. Avval bot orqali ro'yxatdan o'ting.",
+  not_member: "Ro'yxatdan o'tish tugallanmagan. Botni oching — u nima qilish kerakligini aytadi.",
+  bot_blocked: "Bot sizga yoza olmadi. Botni oching va «Start» ni bosing, keyin qayta urinib ko'ring.",
+};
 
 // Soniyani «1:05» ko'rinishida
 const clock = (ms) => {
@@ -35,7 +28,7 @@ const clock = (ms) => {
 const open = (url) => url && Linking.openURL(url).catch(() => {});
 
 export default function LoginScreen() {
-  const { signIn, config, botUsername } = useSession();
+  const { signIn, botUsername } = useSession();
   const [state, setState] = useState(null);
   const [login, setLogin] = useState("");
   const [code, setCode] = useState("");
@@ -80,7 +73,6 @@ export default function LoginScreen() {
   };
   const expiresAt = state?.expiresAt;
 
-  const required = (Array.isArray(config?.required) && config.required.length ? config.required : DEFAULT_REQUIRED).map(chatLink);
   const botUrl = `https://t.me/${botUsername}`;
   const digits = state?.digits ?? DEFAULT_DIGITS;
   const resendLeft = (state?.resendAt ?? 0) - now;
@@ -90,9 +82,11 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
-          <Text style={styles.logo}>🚛</Text>
+          <Image source={LOGO} style={styles.logo} accessibilityLabel="Yuk Ekspert" />
           <Text style={styles.title}>Yuk Ekspert</Text>
-          <Text style={styles.lead}>Katta yuk guruhlaridagi e'lonlardan sizga moslarini saralab beramiz.</Text>
+          <Text style={styles.lead}>
+            Guruhlardagi yuk e'lonlarini shu yerga, darhol yuboradi. Yuk egasi esa yukini to'g'ridan-to'g'ri haydovchiga beradi.
+          </Text>
         </View>
 
         {codeStep ? (
@@ -135,9 +129,7 @@ export default function LoginScreen() {
         ) : (
           <Card style={styles.box}>
             <Text style={styles.boxTitle}>Kirish</Text>
-            <Text style={styles.text}>
-              Botda ulashgan telefon raqamingizni (istalgan davlat, masalan +90 532 123 45 67) yoki Telegram username'ingizni yozing.
-            </Text>
+            <Text style={styles.text}>Telefon raqamingiz yoki Telegram username'ingiz bilan kiring.</Text>
             <TextInput
               style={styles.input}
               value={login}
@@ -157,39 +149,9 @@ export default function LoginScreen() {
 
         {!codeStep ? (
           <Card style={[styles.box, problem && styles.alert]}>
-            <Text style={styles.boxTitle}>
-              {problem === "not_found"
-                ? "Siz hali ro'yxatdan o'tmagansiz"
-                : problem === "not_member"
-                  ? "Kanal va guruhga a'zo bo'ling"
-                  : problem === "bot_blocked"
-                    ? "Botni qayta ishga tushiring"
-                    : "Ro'yxatdan o'tish"}
-            </Text>
-            {problem === "not_found" ? (
-              <Text style={styles.text}>Bu raqam yoki username bizda yo'q. Avval Telegram botimizda ro'yxatdan o'ting:</Text>
-            ) : problem === "not_member" ? (
-              <Text style={styles.text}>Ilova va bot faqat kanalimiz va guruhimiz a'zolariga ishlaydi. A'zo bo'lib, qayta «Kod olish» ni bosing.</Text>
-            ) : problem === "bot_blocked" ? (
-              <Text style={styles.text}>Bot sizga yoza olmadi — siz uni to'xtatgansiz. Botni ochib «Start» ni bosing, keyin qayta urinib ko'ring.</Text>
-            ) : (
-              <Text style={styles.text}>Ilovadan foydalanish uchun avval Telegram botimizda ro'yxatdan o'ting:</Text>
-            )}
-            <Text style={styles.text}>
-              1. <Text style={styles.bold}>@{botUsername}</Text> botini oching va <Text style={styles.bold}>«Start»</Text> ni bosing.{"\n"}
-              2. Kanal va guruhimizga a'zo bo'ling:
-            </Text>
-            <View style={styles.links}>
-              {(problem === "not_member" && state?.missing?.length ? state.missing.map(chatLink) : required).map((chat) => (
-                <Button key={chat.url ?? chat.title} title={`➕ ${chat.title}`} kind="secondary" onPress={() => open(chat.url)} />
-              ))}
-            </View>
-            <Text style={styles.text}>
-              3. Botda rolingizni tanlang va <Text style={styles.bold}>«📱 Raqam ulashish»</Text> tugmasi bilan telefon raqamingizni
-              ulashing (raqam bilan kirish uchun kerak).{"\n"}
-              4. Shu ilovaga qaytib, raqamingiz yoki username'ingiz bilan kiring.
-            </Text>
-            <Button title="✈️ Botni ochish" onPress={() => open(botUrl)} />
+            <Text style={styles.boxTitle}>Ro'yxatdan o'tish</Text>
+            {problem ? <Text style={styles.text}>{PROBLEM_TEXT[problem]}</Text> : null}
+            <Button title="✈️ Bot orqali" onPress={() => open(botUrl)} />
           </Card>
         ) : null}
       </ScrollView>
@@ -200,9 +162,9 @@ export default function LoginScreen() {
 const styles = themed(() =>
   StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
-  content: { flexGrow: 1, justifyContent: "center", padding: space.lg, gap: space.lg },
+  content: { flexGrow: 1, padding: space.lg, paddingTop: space.xl, gap: space.lg },
   brand: { alignItems: "center", gap: space.sm },
-  logo: { fontSize: 56 },
+  logo: { width: 88, height: 88, borderRadius: 22 },
   title: { fontSize: 28, fontWeight: "800", color: colors.text },
   lead: { fontSize: 15, lineHeight: 21, color: colors.hint, textAlign: "center" },
   box: { gap: space.md },
@@ -210,7 +172,6 @@ const styles = themed(() =>
   boxTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
   text: { fontSize: 15, lineHeight: 23, color: colors.text },
   bold: { fontWeight: "700" },
-  links: { gap: space.sm },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
