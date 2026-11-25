@@ -73,9 +73,12 @@ const timeOf = (at) => (at ? new Date(at).toLocaleTimeString("ru-RU", { hour: "2
 let memory = { chatId: null, messages: [], intro: "", quota: null };
 let localId = 0;
 
-// Server xabarlarini ro'yxatga qo'shish: bir xil id — yangisi bilan almashadi; tugmalar faqat eng oxirgi faol savolda
+// Server xabarlarini ro'yxatga qo'shish: bir xil id — yangisi bilan almashadi; tugmalar faqat eng oxirgi faol savolda.
+// Mening amalim (yozdim, bekor qildim, raqam berdim…) javobida — eski savollarning tugmalari darhol yo'qoladi (Azimjon,
+// 2026-11-25: «bekor qilinsa formani yo'q qilib qo'y» — oldin boshqa sahifaga o'tib qaytgandagina yo'qolardi)
 function merge(list, fresh) {
-  const byId = new Map(list.map((m) => [m.id, m]));
+  const mineNow = fresh.some((m) => m.from === "me");
+  const byId = new Map(list.map((m) => [m.id, mineNow && m.active ? { ...m, active: false } : m]));
   for (const m of fresh) byId.set(m.id, m);
   const all = [...byId.values()].sort((a, b) => (a.local || b.local ? (a.at ?? 0) - (b.at ?? 0) : a.id - b.id));
   const lastActive = [...all].reverse().find((m) => m.active)?.id;
@@ -317,7 +320,9 @@ export function LoadChat() {
   };
 
   const recording = mode !== "idle";
-  const all = [...messages, ...pending, ...(busy ? [{ id: "typing", from: "bot", typing: true }] : [])];
+  // Ro'yxat teskari (inverted, Telegram'dagidek): eng yangisi pastda va ekran pastga «mahkamlangan» — klaviatura ochilganda,
+  // yozish maydoni kattalashganda ham sakramaydi (oldin scrollToEnd ba'zan tepaga otib yuborardi, Azimjon 2026-11-25)
+  const all = [...messages, ...pending, ...(busy ? [{ id: "typing", from: "bot", typing: true }] : [])].reverse();
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior="padding" keyboardVerticalOffset={insets.top + 56}>
@@ -328,9 +333,9 @@ export function LoadChat() {
         style={styles.page}
         contentContainerStyle={styles.list}
         data={all}
+        inverted
         keyExtractor={(item) => String(item.id)}
-        onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        ListHeaderComponent={
+        ListFooterComponent={
           <>
             <Guide />
             {intro ? <Bubble item={{ id: "intro", from: "bot", text: intro }} /> : null}

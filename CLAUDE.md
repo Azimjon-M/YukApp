@@ -62,7 +62,9 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   then ✓ + time. 🎤 = PanResponder on the mic: hold → record, release → send, slide left < −90 → cancel, slide up < −80 →
   🔒 lock (🗑 / ➤). Voice bubble ▶/❚❚ + progress + duration + transcript; one shared `useAudioPlayer`, source =
   `api.js voiceSource(id)` (URL + auth headers; own fresh recording plays from the local file). After «✅ Yuborish» polls
-  `?after=` every 3 s (≤ 3 min) for the result message.
+  `?after=` every 3 s (≤ 3 min) for the result message. List is `inverted` (newest at the bottom, anchored — scrollToEnd
+  used to jump to the top sometimes); any response that contains my own message turns every older `active` off (a
+  cancelled form disappears at once).
 - **Chat polish (2026-11-25, his tests):** voice ≥ 3 s; 3 failed voices in a row → server sends a «write it like this»
   example (`voiceHelp`); a text without route or cargo info → bot note «✏️ E'londa … yozilmagan» + the text quoted
   (`failed` + `editText`) with «✏️ Tahrirlash» (puts it back into the input); confirm stage also has «✏️ Tahrirlash»; phone
