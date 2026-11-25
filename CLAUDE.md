@@ -33,6 +33,8 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   /filtr, route) · «Hisob» (hisob.js:
   account, role, sign out, delete) · `(app)/haqida` «Dastur haqida»: author Meliboev Azimjon (t.me/gt_rushsher) and his
   support cards Visa 4231…6273 / Humo 9860…4705 (he asked to show them publicly; tap = copy via expo-clipboard).
+  Sidebar layout (2026-11-25, his «tepada Yuklar va Botni ochish … pastda Sozlamalar va dastur haqida»): top group =
+  Yuklar + «Botni ochish» with the bot's own Telegram photo `assets/bot.jpg` (160×160, fetched via Bot API); bottom group.
 - **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
   huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
   «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET

@@ -1,11 +1,12 @@
-// Yon menyu (sidebar): chapdan chiqadigan panel. Bo'limlar: 📋 Yuklar (yoki 🚚 Mashinalar) · ⚙️ Sozlamalar · ℹ️ Dastur haqida.
+// Yon menyu (sidebar): chapdan chiqadigan panel. Ikki qism (Azimjon, 2026-11-25): tepada — 📋 Yuklar (yoki 🚚 Mashinalar)
+// va «Botni ochish» (botning o'z rasmi, assets/bot.jpg); pastda — ⚙️ Sozlamalar va ℹ️ Dastur haqida.
 // Har bo'limning o'z pastki paneli (tabs) bor — masalan Sozlamalar ichida «E'lon» va «Hisob».
 //
 // Nega tayyor Drawer emas: expo-router/drawer react-native-reanimated va gesture-handler talab qiladi — ular C++ qismli
 // og'ir kutubxonalar (Windows'da APK yig'ishni qiyinlashtirgan). Bu yerda oddiy Modal + Animated yetarli: ☰ bosilsa
 // panel siljib chiqadi, fonga yoki «orqaga» tugmasiga bosilsa yopiladi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { Animated, Easing, Linking, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Animated, Easing, Image, Linking, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { router, usePathname } from "expo-router";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +14,8 @@ import { ROLES } from "@yuk/shared";
 import { badgeText, useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, space, themed } from "../theme.js";
+
+const BOT_ICON = require("../../assets/bot.jpg"); // @Yuk_Ekspert_agent profil rasmi (160×160)
 
 const MenuContext = createContext({ open: () => {}, close: () => {} });
 export const useSideMenu = () => useContext(MenuContext);
@@ -69,8 +72,8 @@ function MenuPanel({ progress, close }) {
   const shipper = me?.role === "yuk_beruvchi";
   const role = ROLES[me?.role];
 
-  const items = [
-    { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) },
+  const loads = { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) };
+  const bottom = [
     { id: "sozlamalar", icon: "⚙️", label: "Sozlamalar", href: "/sozlamalar" },
     { id: "haqida", icon: "ℹ️", label: "Dastur haqida", href: "/haqida" },
   ];
@@ -116,35 +119,21 @@ function MenuPanel({ progress, close }) {
           ) : null}
         </View>
 
-        {/* Bo'limlar */}
+        {/* Tepa: ish joyi — Yuklar va bot */}
         <View style={styles.items}>
-          {items.map((item) => {
-            const on = item.id === current;
-            return (
-              <Pressable
-                key={item.id}
-                role="button"
-                aria-selected={on}
-                onPress={() => go(item.href, item.id)}
-                style={({ pressed }) => [styles.item, on && styles.itemOn, pressed && styles.pressed]}
-              >
-                <Text style={styles.itemIcon}>{item.icon}</Text>
-                <Text style={[styles.itemText, on && styles.itemTextOn]}>{item.label}</Text>
-                {item.badge ? (
-                  <View style={styles.badge2}>
-                    <Text style={styles.badge2Text}>{item.badge}</Text>
-                  </View>
-                ) : null}
-              </Pressable>
-            );
-          })}
-
-          <View style={styles.divider} />
-
+          <MenuItem item={loads} on={current === loads.id} onPress={() => go(loads.href, loads.id)} />
           <Pressable role="button" onPress={openBot} style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
-            <Text style={styles.itemIcon}>✈️</Text>
+            <Image source={BOT_ICON} style={styles.botIcon} accessibilityIgnoresInvertColors />
             <Text style={styles.itemText}>Botni ochish</Text>
           </Pressable>
+        </View>
+
+        {/* Past: sozlamalar va dastur haqida */}
+        <View style={styles.bottomItems}>
+          <View style={styles.divider} />
+          {bottom.map((item) => (
+            <MenuItem key={item.id} item={item} on={current === item.id} onPress={() => go(item.href, item.id)} />
+          ))}
         </View>
 
         <Text style={[styles.footer, { paddingBottom: insets.bottom + space.lg }]}>
@@ -152,6 +141,20 @@ function MenuPanel({ progress, close }) {
         </Text>
       </Animated.View>
     </View>
+  );
+}
+
+function MenuItem({ item, on, onPress }) {
+  return (
+    <Pressable role="button" aria-selected={on} onPress={onPress} style={({ pressed }) => [styles.item, on && styles.itemOn, pressed && styles.pressed]}>
+      <Text style={styles.itemIcon}>{item.icon}</Text>
+      <Text style={[styles.itemText, on && styles.itemTextOn]}>{item.label}</Text>
+      {item.badge ? (
+        <View style={styles.badge2}>
+          <Text style={styles.badge2Text}>{item.badge}</Text>
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -223,7 +226,9 @@ const styles = themed(() =>
   items: { flex: 1, paddingVertical: space.md, paddingHorizontal: space.sm, gap: 2 },
   item: { flexDirection: "row", alignItems: "center", gap: space.md, paddingVertical: 13, paddingHorizontal: space.lg, borderRadius: 12 },
   itemOn: { backgroundColor: colors.soft },
+  bottomItems: { paddingHorizontal: space.sm, paddingBottom: space.sm, gap: 2 },
   itemIcon: { fontSize: 20, width: 28, textAlign: "center" },
+  botIcon: { width: 28, height: 28, borderRadius: 14 },
   itemText: { fontSize: 16, fontWeight: "500", color: colors.text },
   itemTextOn: { fontWeight: "700", color: colors.accent },
   // Yangi yuklar soni — qizil doira (pastki paneldagi belgi bilan bir xil)
