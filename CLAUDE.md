@@ -47,6 +47,11 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `markSeen` from LoadsFeed when «Menga mos» is shown and focused; red `tabBarBadge` + sidebar pill (`badgeText`, «50+»).
   No push notifications (app closed = nothing). `src/toast.js` = ToastAndroid. Don't `pkill -f`/`pgrep -f` a pattern
   that is also in the same bash command — it kills the tool's own shell (exit 144).
+- **Feed scroll (0.9.2, 2026-11-25, his «telegramdagi btn kabi aqilli»):** `LoadsFeed` FlatList uses
+  `maintainVisibleContentPosition` (autoscrollToTopThreshold 80) — scrolled down, the visible card stays put when new
+  loads arrive on top. Round «↑» button bottom-right with the count of new loads above the viewport (pure logic
+  `src/unseenJump.js`, tested; viewability ≥60% = seen): 1st press → oldest unseen (`scrollToIndex`, viewPosition 1),
+  next press → top.
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

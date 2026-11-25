@@ -4,8 +4,11 @@
 // yangi kelgan e'lon tepadan siljib, biroz yonib chiqadi. Filtr tanlanmagan bo'lsa — «🎛 Filtr» bo'limiga o'tkaziladi.
 // Haydovchiga e'lonlar /pub/feed dan — bot yuboradigan asl e'lonlarning o'zi (Azimjon, 2026-11-24: «foydalanuvchilarga bu kerak»).
 // Ko'rsatilgan yuklar «🔴 yangi» belgisidan chiqariladi (newLoads.js markSeen).
+// Telegram'dagidek (Azimjon, 2026-11-25): tepada tursangiz yangisi tepadan kirib keladi; pastga aylantirgan bo'lsangiz
+// ko'rib turgan kartangiz joyidan qimirlamaydi (maintainVisibleContentPosition), o'ng pastda «↑» tugmasi tepada hali
+// ko'rilmagan e'lonlar sonini ko'rsatadi: bosilsa — ko'rilmaganlarning eng eskisiga, yana bosilsa — eng tepaga (unseenJump.js).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, AppState, FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { Animated, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel } from "@yuk/shared";
 import { getFeed, getTrucks } from "../api.js";
@@ -14,11 +17,15 @@ import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Notice, Spinner } from "../ui.js";
+import { addUnseen, dropUnseen, jumpTarget, unseenText } from "../unseenJump.js";
 import { LoadCard, TruckCard } from "./LoadCard.js";
 
 const WINDOW_MS = 10 * 60_000; // ro'yxatda faqat so'nggi 10 daqiqa
 const LIMIT = 200;
 const REFRESH_MS = 3_000;
+const AT_TOP = 80; // shundan yuqorida — «tepada»: yangisi o'zi ko'rinadi (ro'yxat tepaga suriladi)
+const SHOW_AT = 300; // shundan pastga tushsa — «↑» tugmasi chiqadi
+const NONE = new Set();
 
 const KINDS = {
   // Haydovchiga — botdagidek asl e'lonlar (/pub/feed, AI'siz, hammasi); yuk beruvchiga — bo'sh mashinalar (server 1 soatdan kam bermaydi)
@@ -99,6 +106,14 @@ export function LoadsFeed() {
   // ko'rilgan id'lar (animatsiya faqat yangisiga): keshdagilar — ko'rilgan; null = birinchi yuklash (animatsiyasiz)
   const known = useRef(null);
   const lastIds = useRef("");
+
+  // «↑» tugmasi: ro'yxat joyi, tepadagi ko'rilmaganlar, birinchi bosish bo'ldimi
+  const listRef = useRef(null);
+  const atTop = useRef(true);
+  const jumped = useRef(false);
+  const itemsRef = useRef(state.items);
+  const [unseen, setUnseen] = useState(NONE);
+  const [scrolled, setScrolled] = useState(false);
   if (known.current === null && state.items.length) known.current = new Set(state.items.map((item) => item.id));
 
   // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
@@ -127,6 +142,8 @@ export function LoadsFeed() {
         const fresh = new Set(seen ? items.filter((item) => !seen.has(item.id)).map((item) => item.id) : []);
         known.current = new Set(items.map((item) => item.id));
         setState({ items, fresh, loading: false, refreshing: false, error: null, profileKey });
+        itemsRef.current = items;
+        setUnseen((u) => dropUnseen(addUnseen(u, [...fresh], atTop.current), [], items));
         if (focused.current) markSeen(data.items);
       } catch (error) {
         if (id !== request.current) return;
@@ -142,6 +159,9 @@ export function LoadsFeed() {
     if (idle || state.profileKey === profileKey) return;
     known.current = null;
     lastIds.current = "";
+    itemsRef.current = [];
+    setUnseen(NONE);
+    jumped.current = false;
     setState((s) => ({ ...s, items: [], profileKey, loading: true }));
     load();
     // faqat filtr o'zgarganda (load har pauza/yangilanishda yangilanadi — har safar boshidan yuklamasin)
@@ -184,6 +204,42 @@ export function LoadsFeed() {
 
   const { items, fresh, loading, refreshing, error } = state;
 
+  const onScroll = useCallback((e) => {
+    const y = e.nativeEvent.contentOffset.y;
+    atTop.current = y < AT_TOP;
+    if (atTop.current) {
+      jumped.current = false;
+      setUnseen(NONE); // tepaga chiqdi — hammasi ko'rildi
+    }
+    setScrolled(y > SHOW_AT);
+  }, []);
+  // Ekranga (60% dan ko'prog'i) chiqqan kartalar — ko'rilgan
+  const viewability = useRef({ itemVisiblePercentThreshold: 60 }).current;
+  const onViewable = useRef(({ viewableItems }) => {
+    const ids = viewableItems.map((v) => v.item.id);
+    setUnseen((u) => dropUnseen(u, ids, itemsRef.current));
+  }).current;
+
+  const jump = () => {
+    const list = listRef.current;
+    if (!list) return;
+    const target = jumpTarget(items, unseen, jumped.current);
+    if (target.top) {
+      jumped.current = false;
+      list.scrollToOffset({ offset: 0, animated: true });
+      return;
+    }
+    jumped.current = true;
+    // eng eski ko'rilmagani ekran pastida — undan yuqoridagilarni ketma-ket o'qib chiqasiz
+    list.scrollToIndex({ index: target.index, viewPosition: 1, animated: true });
+  };
+  // Karta hali o'lchanmagan (uzoqda) — taxminiy joyga, keyin aniq o'ziga
+  const onScrollToIndexFailed = ({ index, averageItemLength }) => {
+    listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: true });
+    setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: 1, animated: true }), 350);
+  };
+  const showJump = !loading && items.length > 0 && (scrolled || unseen.size > 0);
+
   // Qotib turadigan tepa qism: pauza, filtr (yoki yo'nalish) qatori, xato
   const top = (
     <View style={styles.top}>
@@ -218,6 +274,7 @@ export function LoadsFeed() {
     <View style={styles.page}>
       {top}
       <FlatList
+        ref={listRef}
         style={styles.page}
         contentContainerStyle={styles.list}
         data={loading ? [] : items}
@@ -242,8 +299,36 @@ export function LoadsFeed() {
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load("refresh")} colors={[colors.accent]} />}
         ItemSeparatorComponent={Gap}
+        // Pastda turganda tepaga yangisi qo'shilsa — ko'rinib turgan karta joyida qoladi; tepada bo'lsa — tepaga suriladi
+        maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToTopThreshold: AT_TOP }}
+        onScroll={onScroll}
+        scrollEventThrottle={100}
+        viewabilityConfig={viewability}
+        onViewableItemsChanged={onViewable}
+        onScrollToIndexFailed={onScrollToIndexFailed}
       />
+      {showJump ? <JumpButton count={unseen.size} onPress={jump} /> : null}
     </View>
+  );
+}
+
+// O'ng pastdagi yumaloq «↑» tugmasi, ustida ko'rilmaganlar soni
+function JumpButton({ count, onPress }) {
+  const [anim] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    Animated.spring(anim, { toValue: 1, useNativeDriver: true, friction: 6 }).start();
+  }, [anim]);
+  return (
+    <Animated.View style={[styles.jump, { opacity: anim, transform: [{ scale: anim }] }]}>
+      <Pressable onPress={onPress} style={styles.jumpBtn} hitSlop={8} accessibilityLabel="Tepaga">
+        <Text style={styles.jumpArrow}>↑</Text>
+      </Pressable>
+      {count > 0 ? (
+        <View style={styles.jumpBadge} pointerEvents="none">
+          <Text style={styles.jumpBadgeText}>{unseenText(count)}</Text>
+        </View>
+      ) : null}
+    </Animated.View>
   );
 }
 
@@ -282,5 +367,35 @@ const styles = themed(() =>
   barText: { flex: 1, fontSize: 14, color: colors.barText, fontWeight: "600" },
   bold: { fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
+  jump: { position: "absolute", right: space.lg, bottom: space.lg, alignItems: "center" },
+  jumpBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: colors.line,
+    elevation: 6,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  jumpArrow: { fontSize: 24, lineHeight: 28, color: colors.accent, fontWeight: "700" },
+  jumpBadge: {
+    position: "absolute",
+    top: -10,
+    minWidth: 24,
+    height: 22,
+    paddingHorizontal: 6,
+    borderRadius: 11,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 7,
+  },
+  jumpBadgeText: { color: colors.accentText, fontSize: 12, fontWeight: "700" },
   }),
 );
