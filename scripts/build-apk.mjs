@@ -16,7 +16,14 @@ const local = process.env.LOCALAPPDATA ?? "";
 
 const env = { ...process.env, NODE_ENV: "production" };
 delete env.EXPO_PUBLIC_API_URL; // APK doim haqiqiy serverga ulanadi
-env.JAVA_HOME ??= "C:\\Program Files\\Android\\Android Studio\\jbr";
+// Serverda (Linux, 2026-11-25): JDK va SDK /data/android da (setup.sh) — bor bo'lsa o'shalar
+const SERVER_DIR = "/data/android";
+if (!win && existsSync(join(SERVER_DIR, "sdk"))) {
+  env.JAVA_HOME ??= join(SERVER_DIR, "jdk");
+  env.ANDROID_HOME ??= join(SERVER_DIR, "sdk");
+  env.PATH = `${join(env.JAVA_HOME, "bin")}:${env.PATH}`;
+}
+if (win) env.JAVA_HOME ??= "C:\\Program Files\\Android\\Android Studio\\jbr";
 
 // C: disk to'lib qolgani uchun (2026-11-23) yig'ish D:\Android da: SDK (NDK ~3 GB), Gradle keshi va vaqtinchalik fayllar.
 // Bu papka bo'lmasa — odatiy joylar (C: dagi Android SDK va ~/.gradle).
@@ -36,8 +43,8 @@ env.ANDROID_HOME ??= join(local, "Android", "Sdk");
 // 2026-11-24: 16 GB RAM da 2 × 3 = 6 ta clang birdan — «out of memory» yo'q. Kuchliroq kompyuterda oshirsa bo'ladi.
 const initScript = join(root, "scripts", "native-build.gradle");
 if (win) env.YUK_CXX_DIR ??= join(existsSync(BUILD_DIR) ? BUILD_DIR : join(local, "yuk"), "cx");
-env.YUK_CXX_JOBS ??= "3";
-const workers = env.YUK_BUILD_WORKERS ?? "2";
+env.YUK_CXX_JOBS ??= win ? "3" : "16";
+const workers = env.YUK_BUILD_WORKERS ?? (win ? "2" : "16"); // serverda 192 yadro, 500 GB xotira
 
 // Windows: SDK dagi CMake bilan keladigan ninja 1.10 yo'l 260 belgidan uzun bo'lsa yiqiladi
 // («Filename longer than 260 characters», gesture-handler kodgeni). ninja 1.12+ uzun yo'llarni biladi
@@ -58,8 +65,9 @@ if (win) {
   }
 }
 
-// Telefonlar: arm64-v8a (deyarli hammasi), armeabi-v7a (eski arzon telefonlar), x86_64 (kompyuterdagi emulyator)
-const ARCHS = "arm64-v8a,armeabi-v7a,x86_64";
+// Telefonlar: arm64-v8a (deyarli hammasi), armeabi-v7a (eski arzon telefonlar), x86_64 (kompyuterdagi emulyator).
+// YUK_ARCHS=arm64-v8a — faqat zamonaviy telefonlar uchun: tezroq yig'iladi, fayl kichikroq (serverdagi reliz shunday)
+const ARCHS = env.YUK_ARCHS?.trim() || "arm64-v8a,armeabi-v7a,x86_64";
 
 function run(cmd, args, cwd) {
   console.log(`\n> ${cmd} ${args.join(" ")}`);

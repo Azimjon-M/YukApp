@@ -103,6 +103,11 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `--key-pass` dropped (PKCS12: key password = store password). Result `apk/yuk-ekspert-0.1.0.apk` 66 MB, signer
   `CN=Yuk Ekspert, C=UZ` (SHA-256 a48f15e2…). Installed on his phone Infinix X6873 (Android 16, arm64) via adb; starts,
   no crash. Login with his Telegram not checked by Claude (he was using the phone).
+- **APK built on the server (2026-11-25, his «faqat arm64-v8a … bot MiniApp da yuklab oladigan qil»):** JDK + SDK in
+  `/data/android`; `build-apk.mjs` picks them on Linux, `YUK_ARCHS=arm64-v8a`, 16 workers. Release =
+  `bash /data/ops/yukapp-release.sh` (needs `google-services.json` + `keys/` here, both gitignored) → published at
+  `https://yuk.gtpro.uz/pub/app/android`, bot /ilovalar and Mini App «📱 Ilova» (YukPlatform CLAUDE.md). After each
+  version bump: push + release, then tell him «botdan yangilang».
 - **Workflow from the server (2026-11-24, his «sen o'zgarishlar qilasan, men gitdan olib telefonimga build qilib test qilaman»):**
   Claude also works on a clone at `/data/YukApp` on the YukPlatform server (Linux, next to `/data/YukPlatform`, so
   `@yuk/shared` resolves) — edits, `npm test`, `npx eslint src test`, push to `main`. No Android SDK/phone there: he
