@@ -41,6 +41,8 @@ export default function MainTabs() {
         name="index"
         options={{
           title: shipper ? "Bo'sh mashinalar" : "Yuklar",
+          // Ilova asosan shu sahifada ishlaydi — tepada sahifa nomi emas, ilova nomi (Azimjon, 2026-11-25)
+          headerTitle: "Yuk Ekspert",
           tabBarLabel: shipper ? "Mashinalar" : "Yuklar",
           tabBarIcon: tabIcon(shipper ? "🚚" : "📋"),
           tabBarBadge: badgeText(count),
