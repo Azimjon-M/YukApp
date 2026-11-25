@@ -71,7 +71,9 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   kerak»):** tap → `openPost.js` `setOpenPost(data.postId)` (module store, survives cold start) → LoadsFeed loads at once
   (no 3 s wait), finds the id → `scrollToIndex` viewPosition 0 + green `colors.ok` border overlay in `Appear` (2.5 s,
   fades); not found within 15 s → toast. `clearOpenPost` only inside the timer (calling it earlier re-runs the effect and
-  cancels the scroll).
+  cancels the scroll). 0.11.2: the push `body.item` (server sends the card) is inserted at once — no wait; without it a
+  centered «Kuting…» overlay after 250 ms. Blue glow and spring are separate animations (a stopped sequence left the
+  blue border stuck).
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

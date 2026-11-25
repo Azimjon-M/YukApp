@@ -8,7 +8,7 @@
 // ko'rib turgan kartangiz joyidan qimirlamaydi (maintainVisibleContentPosition), o'ng pastda «↑» tugmasi tepada hali
 // ko'rilmagan e'lonlar sonini ko'rsatadi: bosilsa — ko'rilmaganlarning eng eskisiga, yana bosilsa — eng tepaga (unseenJump.js).
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Animated, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Animated, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel } from "@yuk/shared";
 import { getFeed, getTrucks } from "../api.js";
@@ -65,17 +65,17 @@ function Appear({ isNew, isTarget, children }) {
   const [mark] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!isNew) return;
-    Animated.sequence([
-      Animated.spring(anim, { toValue: 1, useNativeDriver: false, friction: 7, tension: 60 }),
-      Animated.timing(glow, { toValue: 0, duration: 1500, useNativeDriver: false }),
-    ]).start();
+    // Alohida-alohida (sequence emas): biri to'xtatilsa ham, ko'k hoshiya baribir so'nadi — aks holda qolib ketardi
+    Animated.spring(anim, { toValue: 1, useNativeDriver: false, friction: 7, tension: 60 }).start();
+    Animated.timing(glow, { toValue: 0, duration: 1500, delay: 450, useNativeDriver: false }).start();
   }, [isNew, anim, glow]);
   useEffect(() => {
     if (!isTarget) return;
     anim.setValue(1);
+    glow.setValue(0); // ko'k «yangi» hoshiya o'rniga — faqat yashil
     mark.setValue(1);
     Animated.sequence([Animated.delay(2500), Animated.timing(mark, { toValue: 0, duration: 1500, useNativeDriver: false })]).start();
-  }, [isTarget, anim, mark]);
+  }, [isTarget, anim, glow, mark]);
   return (
     <Animated.View
       style={{
@@ -253,6 +253,32 @@ export function LoadsFeed() {
     listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: true });
     setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: viewPos.current, animated: true }), 350);
   };
+  // Bildirishnoma ichida e'lonning o'zi keldi — serverni kutmasdan darhol lentaga (keyingi so'rov to'liq matn bilan almashtiradi)
+  useEffect(() => {
+    const item = openPost?.item;
+    if (!item || idle) return undefined;
+    const timer = setTimeout(() => {
+      setState((s) => {
+        if (s.items.some((one) => String(one.id) === openPost.id)) return s;
+        const items = fresh10([item, ...s.items], Date.now());
+        known.current = new Set([...(known.current ?? []), ...items.map((one) => one.id)]); // ko'k «yangi» animatsiyasiz
+        itemsRef.current = items;
+        return { ...s, items, loading: false };
+      });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [openPost, idle]);
+  // «Kuting…»: e'lon hali lentada yo'q (bildirishnomada kelmagan, server javobini kutyapmiz). 250 ms dan oldin topilsa — ko'rinmaydi
+  const [waiting, setWaiting] = useState(false);
+  useEffect(() => {
+    if (!openPost || idle) return undefined;
+    const timer = setTimeout(() => setWaiting(true), 250);
+    return () => {
+      clearTimeout(timer);
+      setWaiting(false);
+    };
+  }, [openPost, idle]);
+
   // Bildirishnoma bosildi: lenta kutmasdan darhol so'raladi (3 soniyalik navbatni kutmaydi)
   useEffect(() => {
     if (!openPost || idle) return undefined;
@@ -359,6 +385,14 @@ export function LoadsFeed() {
         onScrollToIndexFailed={onScrollToIndexFailed}
       />
       {showJump ? <JumpButton count={unseen.size} onPress={jump} /> : null}
+      {waiting ? (
+        <View style={styles.wait} pointerEvents="none">
+          <View style={styles.waitBox}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={styles.waitText}>Kuting…</Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -423,6 +457,9 @@ const styles = themed(() =>
   barText: { flex: 1, fontSize: 14, color: colors.barText, fontWeight: "600" },
   bold: { fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
+  wait: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center", backgroundColor: colors.backdrop, zIndex: 5 },
+  waitBox: { backgroundColor: colors.card, borderRadius: radius + 4, paddingVertical: space.lg, paddingHorizontal: space.xl, alignItems: "center", gap: space.sm, elevation: 8 },
+  waitText: { fontSize: 16, fontWeight: "600", color: colors.text },
   // bildirishnomadan ochilgan e'lon hoshiyasi (Appear)
   target: { position: "absolute", top: -2, left: -2, right: -2, bottom: -2, borderRadius: radius + 2, borderWidth: 3, borderColor: colors.ok },
   jump: { position: "absolute", right: space.lg, bottom: space.lg, alignItems: "center" },

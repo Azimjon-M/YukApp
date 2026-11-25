@@ -117,7 +117,8 @@ function handle(response) {
     Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
     return;
   }
-  setOpenPost(data.postId); // lenta shu e'lonni topib, tepaga olib keladi (openPost.js)
+  // lenta shu e'lonni topib, tepaga olib keladi (openPost.js). data.item — e'lonning o'zi: serverni kutmasdan darhol ko'rinadi
+  setOpenPost(data.postId, data.item);
   router.navigate("/");
 }
 

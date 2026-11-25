@@ -3,13 +3,14 @@
 // unga scroll qilingan, viewportda tepada bo'lishi kerak»). Ilova yopiq turganda bosilgan bo'lsa ham — lenta ochilguncha saqlanadi.
 import { useSyncExternalStore } from "react";
 
-let current = null; // { id, at }
+let current = null; // { id, item, at } — item: bildirishnoma ichida kelgan e'lonning o'zi (server push.js), bo'lmasa null
 const listeners = new Set();
 const emit = () => listeners.forEach((listener) => listener());
 
-export function setOpenPost(id) {
+export function setOpenPost(id, item = null) {
   if (id == null || id === "") return;
-  current = { id: String(id), at: Date.now() };
+  const ok = item && typeof item === "object" && String(item.id) === String(id) && item.post && item.load;
+  current = { id: String(id), item: ok ? item : null, at: Date.now() };
   emit();
 }
 export function clearOpenPost() {
