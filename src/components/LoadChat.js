@@ -386,11 +386,11 @@ export function LoadChat() {
 
         {mode === "locked" ? (
           <Pressable role="button" aria-label="Ovozni yuborish" onPress={() => finishVoice(true)} style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed]}>
-            <Text style={styles.sendIcon}>➤</Text>
+            <SendIcon />
           </Pressable>
         ) : text.trim() && !recording ? (
           <Pressable role="button" aria-label="Yuborish" onPress={send} disabled={busy} style={({ pressed }) => [styles.roundBtn, busy && styles.off, pressed && styles.pressed]}>
-            <Text style={styles.sendIcon}>➤</Text>
+            <SendIcon />
           </Pressable>
         ) : (
           <View>
@@ -413,6 +413,11 @@ export function LoadChat() {
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+// Yuborish belgisi — chiziqli uchburchak (➤ harfi har telefonda boshqacha va markazdan qochib turardi)
+function SendIcon() {
+  return <View style={styles.sendTri} pointerEvents="none" />;
 }
 
 // Telegram'dagidek oq mikrofon belgisi (chiziqlardan chiziladi — emoji 🎤 rangli va har telefonda boshqacha):
@@ -638,11 +643,14 @@ const styles = themed(() =>
     },
     input: {
       flex: 1,
-      minHeight: 44,
+      // Tugma bilan bir xil balandlik (48) — bitta qatorda ikkalasi o'rtada tekis; matn ko'paysa maydon o'sadi, tugma pastda
+      minHeight: 48,
       maxHeight: 140,
-      borderRadius: 22,
+      borderRadius: 24,
       paddingHorizontal: space.lg,
-      paddingVertical: 10,
+      paddingTop: 13,
+      paddingBottom: 13,
+      textAlignVertical: "center",
       fontSize: 15,
       color: colors.text,
       backgroundColor: colors.bg,
@@ -665,7 +673,18 @@ const styles = themed(() =>
     micStem: { position: "absolute", top: 19, width: 2.2, height: 4, backgroundColor: "#fff" },
     micBase: { position: "absolute", top: 22.5, width: 9, height: 2.2, borderRadius: 1.1, backgroundColor: "#fff" },
     off: { opacity: 0.4 },
-    sendIcon: { color: colors.accentText, fontSize: 20, fontWeight: "700" },
+    // uchburchak: o'ngga qaragan; optik markaz uchun biroz o'ngga suriladi
+    sendTri: {
+      width: 0,
+      height: 0,
+      marginLeft: 4,
+      borderTopWidth: 9,
+      borderBottomWidth: 9,
+      borderLeftWidth: 16,
+      borderTopColor: "transparent",
+      borderBottomColor: "transparent",
+      borderLeftColor: "#fff",
+    },
     pressed: { opacity: 0.6 },
     recBox: { flex: 1, minHeight: 48, flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, borderRadius: 24, backgroundColor: colors.bg },
     recTrash: { fontSize: 20 },
