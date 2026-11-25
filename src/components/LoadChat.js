@@ -357,7 +357,7 @@ export function LoadChat() {
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder="Yukingizni yozing yoki 🎤 bosib ayting…"
+            placeholder="Yukingizni yozing yoki mikrofonni bosib turing…"
             placeholderTextColor={colors.hint}
             multiline
             maxLength={3000}
@@ -386,12 +386,25 @@ export function LoadChat() {
               accessibilityRole="button"
               accessibilityLabel="Ovoz yozish: bosib turing"
             >
-              <Text style={styles.sendIcon}>🎤</Text>
+              <MicIcon />
             </Animated.View>
           </View>
         )}
       </View>
     </KeyboardAvoidingView>
+  );
+}
+
+// Telegram'dagidek oq mikrofon belgisi (chiziqlardan chiziladi — emoji 🎤 rangli va har telefonda boshqacha):
+// kapsula, uning ostida «U» ushlagich, oyoqcha va taglik
+function MicIcon() {
+  return (
+    <View style={styles.mic} pointerEvents="none">
+      <View style={styles.micHead} />
+      <View style={styles.micCup} />
+      <View style={styles.micStem} />
+      <View style={styles.micBase} />
+    </View>
   );
 }
 
@@ -558,6 +571,21 @@ const styles = themed(() =>
     },
     roundBtn: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
     micActive: { backgroundColor: colors.error },
+    mic: { width: 22, height: 26, alignItems: "center" },
+    micHead: { width: 10, height: 15, borderRadius: 5, backgroundColor: "#fff" },
+    micCup: {
+      position: "absolute",
+      top: 7,
+      width: 18,
+      height: 12,
+      borderWidth: 2.2,
+      borderTopWidth: 0,
+      borderColor: "#fff",
+      borderBottomLeftRadius: 9,
+      borderBottomRightRadius: 9,
+    },
+    micStem: { position: "absolute", top: 19, width: 2.2, height: 4, backgroundColor: "#fff" },
+    micBase: { position: "absolute", top: 22.5, width: 9, height: 2.2, borderRadius: 1.1, backgroundColor: "#fff" },
     off: { opacity: 0.4 },
     sendIcon: { color: colors.accentText, fontSize: 20, fontWeight: "700" },
     pressed: { opacity: 0.6 },
