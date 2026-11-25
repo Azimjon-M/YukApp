@@ -26,7 +26,9 @@ const KINDS = {
 };
 
 const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
-const fresh10 = (items, now) => items.filter((item) => now - timeOf(item) <= WINDOW_MS);
+// Eng tepada — eng oxirgi KELGANI (id o'sib boradi). E'lon vaqti bo'yicha tartibda kech yetib kelgan e'lon 2-3-o'ringa
+// tushib qolardi va animatsiya «tepadagidan pastdagisida» ko'rinardi (Azimjon, 2026-11-25)
+const fresh10 = (items, now) => items.filter((item) => now - timeOf(item) <= WINDOW_MS).sort((a, b) => Number(b.id) - Number(a.id));
 
 // Yangi kelgan kartochka: tepadan siljib chiqadi va 1.5 soniya ko'k hoshiya bilan yonadi
 function Appear({ isNew, children }) {
@@ -55,7 +57,8 @@ function Appear({ isNew, children }) {
 }
 
 export function LoadsFeed() {
-  const { me } = useSession();
+  const { me, refreshMe } = useSession();
+  const paused = me.active === false;
   const { count: freshCount, markSeen } = useNewLoads();
   const kind = me.role === "yuk_beruvchi" ? "mashina" : "yuk";
   const k = KINDS[kind];
@@ -81,6 +84,8 @@ export function LoadsFeed() {
       try {
         const data = await k.fetch();
         if (id !== request.current) return;
+        // Pauza botda yoki boshqa joyda o'zgargan bo'lsa — ilovadagi holat yangilanadi (server active ni aytadi)
+        if (typeof data.active === "boolean" && data.active === paused) refreshMe().catch(() => {});
         const items = fresh10(data.items, Date.now());
         // Oldin ko'rilmagan id'lar — yangi (animatsiya); birinchi yuklashda hech biri yangi emas
         const seen = known.current;
@@ -96,7 +101,7 @@ export function LoadsFeed() {
     },
     // profileKey so'rovda ishlatilmaydi, lekin o'zgarsa load yangilanadi → pastdagi useEffect ro'yxatni qayta so'raydi
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [k, profileKey, markSeen],
+    [k, profileKey, markSeen, paused, refreshMe],
   );
 
   // Filtr o'zgardi — boshidan (eski ro'yxat animatsiyasiz almashadi)
@@ -145,9 +150,9 @@ export function LoadsFeed() {
   // Qotib turadigan tepa qism: pauza, filtr (yoki yo'nalish) qatori, xato
   const top = (
     <View style={styles.top}>
-      {!me.active ? (
+      {paused ? (
         <View style={styles.paused}>
-          <Text style={styles.pausedText}>⏸ Pauzada — bot e'lon yubormayapti. Pastdagi «▶️ Davom etish» ni bosing.</Text>
+          <Text style={styles.pausedText}>⏸ Pauzada — sizga yangi e'lonlar kelmaydi (ilovada ham, botda ham). Qayta yoqish uchun pastdagi «▶️ Davom etish» ni bosing.</Text>
         </View>
       ) : null}
       {driver && profile ? (
@@ -178,7 +183,7 @@ export function LoadsFeed() {
       <FlatList
         style={styles.page}
         contentContainerStyle={styles.list}
-        data={loading ? [] : items}
+        data={loading || paused ? [] : items}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Appear isNew={fresh.has(item.id)}>
@@ -186,7 +191,7 @@ export function LoadsFeed() {
           </Appear>
         )}
         ListEmptyComponent={
-          loading ? (
+          paused ? null : loading ? (
             <Spinner />
           ) : error ? (
             <Notice title="Ro'yxat ochilmadi" action={<Button title="Qayta urinish" onPress={() => load()} />}>

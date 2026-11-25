@@ -52,7 +52,7 @@ export default function MainTabs() {
           title: active ? "Pauza" : "Davom etish",
           tabBarIcon: tabIcon(active ? "⏸" : "▶️"),
           // Pauzada — yashil «Davom etish», ko'zga tashlansin
-          tabBarInactiveTintColor: active ? colors.hint : colors.ok,
+          tabBarInactiveTintColor: active ? colors.text : colors.ok,
           tabBarButton: (props) => (
             <Pressable
               {...props}

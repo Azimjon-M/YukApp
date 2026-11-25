@@ -27,6 +27,7 @@ const LIGHT = {
   warnText: "#8a5300",
   shadow: "#000000",
   backdrop: "rgba(0,0,0,0.45)",
+  tabActive: "rgba(36,129,204,0.13)", // pastki paneldagi faol tab orqasidagi shaffof box
 };
 
 const DARK = {
@@ -49,6 +50,7 @@ const DARK = {
   warnText: "#f5c27a",
   shadow: "#000000",
   backdrop: "rgba(0,0,0,0.6)",
+  tabActive: "rgba(74,163,232,0.20)",
 };
 
 export const colors = { ...LIGHT };
