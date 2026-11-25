@@ -146,7 +146,8 @@ export const deleteMe = () => request("DELETE", "/pub/me");
 export const getLoadChat = (after = 0) => request("GET", `/pub/me/load-chat${after ? `?after=${after}` : ""}`); // + intro
 // Matnni tushunish AI'ga ketishi mumkin — qayta yuborilmaydi (ikki marta xabar bo'lmasin), kutish 60 s
 export const sendLoadText = (text) => request("POST", "/pub/me/load-chat", { body: { text }, retry: false, timeout: 60_000 });
-export const pickLoadPhone = (phone) => request("POST", "/pub/me/load-chat/phone", { body: { phone }, retry: false });
+// Raqam (tayyoridan yoki yozgani); send — shu zahoti yuborish (raqam oynasidagi «✅ Yuborish»)
+export const pickLoadPhone = (phone, send = false) => request("POST", "/pub/me/load-chat/phone", { body: { phone, send }, retry: false });
 export const confirmLoad = () => request("POST", "/pub/me/load-chat/send", { retry: false });
 export const cancelLoad = () => request("DELETE", "/pub/me/load-chat", { retry: false });
 

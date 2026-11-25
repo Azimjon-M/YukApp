@@ -63,6 +63,11 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   🔒 lock (🗑 / ➤). Voice bubble ▶/❚❚ + progress + duration + transcript; one shared `useAudioPlayer`, source =
   `api.js voiceSource(id)` (URL + auth headers; own fresh recording plays from the local file). After «✅ Yuborish» polls
   `?after=` every 3 s (≤ 3 min) for the result message.
+- **Chat polish (2026-11-25, his tests):** voice ≥ 3 s; 3 failed voices in a row → server sends a «write it like this»
+  example (`voiceHelp`); a text without route or cargo info → bot note «✏️ E'londa … yozilmagan» + the text quoted
+  (`failed` + `editText`) with «✏️ Tahrirlash» (puts it back into the input); confirm stage also has «✏️ Tahrirlash»; phone
+  stage = card + `PhoneAsk` (input prefilled with the saved/own phone, chips for other saved ones) + «✅ Yuborish»
+  (`pickLoadPhone(phone, true)` → server sets the phone AND sends) + «❌ E'lonni bekor qilish».
 - **Filtr + new-loads badge (0.4.0, 2026-11-24, his «Yuklar, Filtr va Pauza … Filter esa Mashina, Qayerdan va Guruhlar
   huddi botdagidek … e'lonlar kelsa Yuklar btn qizil va ichida raqam … Saidbardagi Yuklar gaham»):** filter = bot's
   «🎛 Filtr»: source tezkor «🌐 Hamma guruhlar» | guruhlarim «📌 Faqat tanlangan» (`components/GroupPicker.js`, GET

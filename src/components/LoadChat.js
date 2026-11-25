@@ -43,7 +43,7 @@ import { Button } from "../ui.js";
 const POLL_MS = 3_000; // yuborilgan yuk natijasini kutish
 const POLL_FOR_MS = 3 * 60_000;
 const VOICE_MAX_MS = 120_000; // ovoz ko'pi bilan 2 daqiqa
-const VOICE_MIN_MS = 1_000;
+const VOICE_MIN_MS = 3_000; // Azimjon: «audio jo'natishni minimum 3 sekund»
 const CANCEL_DX = -90; // shuncha chapga sursa — bekor
 const LOCK_DY = -80; // shuncha tepaga sursa — qulf
 // Ovoz: AAC (ADTS) mono 16 kHz — kichik fayl (~4 KB/s), Gemini «audio/aac» ni o'qiydi
@@ -177,7 +177,18 @@ export function LoadChat() {
     setText("");
     run({ text: value }, () => sendLoadText(value));
   };
-  const choosePhone = (phone) => run({ text: `📞 ${phone.label}` }, () => pickLoadPhone(phone.phone));
+  // Raqam oynasi: raqamni tekshirib (tahrirlab) «✅ Yuborish» — raqam yoziladi va e'lon shu zahoti ketadi
+  const sendWithPhone = (phone) => {
+    const value = phone.trim();
+    if (!value) return toast("Telefon raqamini yozing");
+    run({ text: `📞 ${value}` }, () => pickLoadPhone(value, true));
+  };
+  // «✏️ Tahrirlash»: yozgani pastdagi maydonga qaytadi — to'g'rilab qayta yuboradi
+  const inputRef = useRef(null);
+  const editText = (value) => {
+    setText(value);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
   const confirm = () => run({ text: "✅ Yuborish" }, () => confirmLoad());
   const cancel = () => run({ text: "❌ Bekor qilish" }, () => cancelLoad());
 
@@ -232,7 +243,7 @@ export function LoadChat() {
     const uri = await stopRec();
     if (!keep) return;
     if (!uri || ms < VOICE_MIN_MS) {
-      toast("Juda qisqa — 🎤 ni bosib turib gapiring");
+      toast("Kamida 3 soniya gapiring — mikrofonni bosib turing");
       return;
     }
     run({ audio: true, durationMs: ms, localUri: uri }, async () => {
@@ -326,7 +337,8 @@ export function LoadChat() {
         renderItem={({ item }) => (
           <Bubble
             item={item}
-            onPhone={choosePhone}
+            onPhone={sendWithPhone}
+            onEdit={editText}
             onConfirm={confirm}
             onCancel={cancel}
             busy={busy}
@@ -354,6 +366,7 @@ export function LoadChat() {
           </View>
         ) : (
           <TextInput
+            ref={inputRef}
             style={styles.input}
             value={text}
             onChangeText={setText}
@@ -437,7 +450,36 @@ function Guide() {
   );
 }
 
-function Bubble({ item, onPhone, onConfirm, onCancel, busy, onPlay, playback }) {
+// Raqam oynasi: tayyor raqam (o'zgartirsa bo'ladi) + boshqa saqlangan raqamlar + [✅ Yuborish] [❌ Bekor qilish]
+function PhoneAsk({ phones, onSend, onCancel, busy }) {
+  const [value, setValue] = useState(phones?.[0]?.label ?? "");
+  return (
+    <View style={styles.actions}>
+      <TextInput
+        style={styles.phoneInput}
+        value={value}
+        onChangeText={setValue}
+        placeholder="90 123 45 67"
+        placeholderTextColor={colors.hint}
+        keyboardType="phone-pad"
+        maxLength={40}
+      />
+      {phones?.length > 1 ? (
+        <View style={styles.phoneChips}>
+          {phones.map((p) => (
+            <Pressable key={p.phone} onPress={() => setValue(p.label)} style={({ pressed }) => [styles.phoneChip, pressed && styles.pressed]}>
+              <Text style={styles.phoneChipText}>📞 {p.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+      <Button title="✅ Yuborish" onPress={() => onSend(value)} disabled={busy} />
+      <Button title="❌ E'lonni bekor qilish" kind="secondary" onPress={onCancel} disabled={busy} />
+    </View>
+  );
+}
+
+function Bubble({ item, onPhone, onEdit, onConfirm, onCancel, busy, onPlay, playback }) {
   const mine = item.from === "me";
   if (item.typing) {
     return (
@@ -466,20 +508,23 @@ function Bubble({ item, onPhone, onConfirm, onCancel, busy, onPlay, playback }) 
           ))}
         </View>
       ))}
+      {/* Ma'lumot yetishmadi — yozgani qaytariladi, «✏️ Tahrirlash» bilan to'g'rilab qayta yuboradi */}
+      {item.failed && item.editText ? (
+        <View style={styles.quote}>
+          <Text style={styles.quoteText} selectable>
+            {item.editText}
+          </Text>
+          <Button title="✏️ Tahrirlash" kind="secondary" onPress={() => onEdit?.(item.editText)} />
+        </View>
+      ) : null}
       {item.active && item.stage === "confirm" ? (
         <View style={styles.actions}>
           <Button title="✅ Yuborish" onPress={onConfirm} disabled={busy} />
-          <Button title="❌ Bekor qilish" kind="secondary" onPress={onCancel} disabled={busy} />
+          {item.editText ? <Button title="✏️ Tahrirlash" kind="secondary" onPress={() => onEdit?.(item.editText)} disabled={busy} /> : null}
+          <Button title="❌ E'lonni bekor qilish" kind="secondary" onPress={onCancel} disabled={busy} />
         </View>
       ) : null}
-      {item.active && item.stage === "phone" ? (
-        <View style={styles.actions}>
-          {item.phones?.map((phone) => (
-            <Button key={phone.phone} title={`📞 ${phone.label}`} kind="secondary" onPress={() => onPhone(phone)} disabled={busy} />
-          ))}
-          <Button title="❌ Bekor qilish" kind="link" onPress={onCancel} disabled={busy} />
-        </View>
-      ) : null}
+      {item.active && item.stage === "phone" ? <PhoneAsk phones={item.phones} onSend={onPhone} onCancel={onCancel} busy={busy} /> : null}
       {item.id !== "intro" ? (
         <Text style={[styles.time, mine && styles.meSoft]}>{item.pending ? "🕓" : `${timeOf(item.at)}${mine ? " ✓" : ""}`}</Text>
       ) : null}
@@ -536,6 +581,22 @@ const styles = themed(() =>
     cardHead: { fontWeight: "700" },
     cardLine: { fontSize: 14, lineHeight: 20, color: colors.text },
     actions: { gap: space.sm },
+    quote: { gap: space.sm, borderLeftWidth: 3, borderLeftColor: colors.accent, paddingLeft: space.sm },
+    quoteText: { fontSize: 14, lineHeight: 20, color: colors.text, fontStyle: "italic" },
+    phoneInput: {
+      minHeight: 46,
+      borderRadius: radius,
+      borderWidth: 1,
+      borderColor: colors.line,
+      paddingHorizontal: space.md,
+      fontSize: 17,
+      fontWeight: "600",
+      color: colors.text,
+      backgroundColor: colors.bg,
+    },
+    phoneChips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+    phoneChip: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, backgroundColor: colors.soft },
+    phoneChipText: { fontSize: 13, color: colors.accent, fontWeight: "600" },
     voice: { flexDirection: "row", alignItems: "center", gap: space.sm, minWidth: 200 },
     playBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
     playBtnMine: { backgroundColor: "#fff" },
