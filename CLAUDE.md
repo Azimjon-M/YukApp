@@ -107,7 +107,7 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `/data/android`; `build-apk.mjs` picks them on Linux, `YUK_ARCHS=arm64-v8a`, 16 workers. Release =
   `bash /data/ops/yukapp-release.sh` (needs `google-services.json` + `keys/` here, both gitignored) → published at
   `https://yuk.gtpro.uz/pub/app/android`, bot /ilovalar and Mini App «📱 Ilova» (YukPlatform CLAUDE.md). After each
-  version bump: push + release, then tell him «botdan yangilang».
+  change: push only; build + version bump ONLY when he says «build qil» (he batches small changes, 2026-11-25).
 - **Workflow from the server (2026-11-24, his «sen o'zgarishlar qilasan, men gitdan olib telefonimga build qilib test qilaman»):**
   Claude also works on a clone at `/data/YukApp` on the YukPlatform server (Linux, next to `/data/YukPlatform`, so
   `@yuk/shared` resolves) — edits, `npm test`, `npx eslint src test`, push to `main`. No Android SDK/phone there: he
