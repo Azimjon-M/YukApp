@@ -10,6 +10,7 @@ import * as IntentLauncher from "expo-intent-launcher";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { savePushToken } from "./api.js";
+import { setOpenPost } from "./openPost.js";
 
 const native = Platform.OS === "android";
 export const CHANNEL = "yuklar"; // server FCM xabarida channelId shu bo'lsin
@@ -116,6 +117,7 @@ function handle(response) {
     Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
     return;
   }
+  setOpenPost(data.postId); // lenta shu e'lonni topib, tepaga olib keladi (openPost.js)
   router.navigate("/");
 }
 

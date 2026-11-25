@@ -67,6 +67,11 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   `yuk_battery_ask`) to exempt the app from battery optimization: `expo-battery` `isBatteryOptimizationEnabledAsync` →
   `expo-intent-launcher` `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (`package:` uri; permission in app.json). Sozlamalar
   shows the battery state + Infinix/Tecno/Xiaomi «Auto-start» hint. No background JS polling — delivery is FCM only.
+- **Open from notification (0.11.1, 2026-11-25, his «bosib ilovaga o'tsam u hali kelmagan … yashil … tepada bo'lishi
+  kerak»):** tap → `openPost.js` `setOpenPost(data.postId)` (module store, survives cold start) → LoadsFeed loads at once
+  (no 3 s wait), finds the id → `scrollToIndex` viewPosition 0 + green `colors.ok` border overlay in `Appear` (2.5 s,
+  fades); not found within 15 s → toast. `clearOpenPost` only inside the timer (calling it earlier re-runs the effect and
+  cancels the scroll).
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

@@ -17,6 +17,8 @@ import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Notice, Spinner } from "../ui.js";
+import { clearOpenPost, useOpenPost } from "../openPost.js";
+import { toast } from "../toast.js";
 import { addUnseen, dropUnseen, jumpTarget, unseenText } from "../unseenJump.js";
 import { LoadCard, TruckCard } from "./LoadCard.js";
 
@@ -55,10 +57,12 @@ const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
 // tushib qolardi va animatsiya «tepadagidan pastdagisida» ko'rinardi (Azimjon, 2026-11-25)
 const fresh10 = (items, now) => items.filter((item) => now - timeOf(item) <= WINDOW_MS).sort((a, b) => Number(b.id) - Number(a.id));
 
-// Yangi kelgan kartochka: tepadan siljib chiqadi va 1.5 soniya ko'k hoshiya bilan yonadi
-function Appear({ isNew, children }) {
+// Yangi kelgan kartochka: tepadan siljib chiqadi va 1.5 soniya ko'k hoshiya bilan yonadi.
+// Bildirishnomadan ochilgan e'lon (isTarget): 2.5 soniya yashil hoshiya, keyin asta o'chadi
+function Appear({ isNew, isTarget, children }) {
   const [anim] = useState(() => new Animated.Value(isNew ? 0 : 1));
   const [glow] = useState(() => new Animated.Value(isNew ? 1 : 0));
+  const [mark] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!isNew) return;
     Animated.sequence([
@@ -66,6 +70,12 @@ function Appear({ isNew, children }) {
       Animated.timing(glow, { toValue: 0, duration: 1500, useNativeDriver: false }),
     ]).start();
   }, [isNew, anim, glow]);
+  useEffect(() => {
+    if (!isTarget) return;
+    anim.setValue(1);
+    mark.setValue(1);
+    Animated.sequence([Animated.delay(2500), Animated.timing(mark, { toValue: 0, duration: 1500, useNativeDriver: false })]).start();
+  }, [isTarget, anim, mark]);
   return (
     <Animated.View
       style={{
@@ -77,6 +87,7 @@ function Appear({ isNew, children }) {
       }}
     >
       {children}
+      <Animated.View pointerEvents="none" style={[styles.target, { opacity: mark }]} />
     </Animated.View>
   );
 }
@@ -114,6 +125,9 @@ export function LoadsFeed() {
   const itemsRef = useRef(state.items);
   const [unseen, setUnseen] = useState(NONE);
   const [scrolled, setScrolled] = useState(false);
+  const openPost = useOpenPost(); // bildirishnomadan bosilgan e'lon
+  const [targetId, setTargetId] = useState(null); // yashil hoshiyali e'lon
+  const viewPos = useRef(1); // oxirgi scrollToIndex: 0 — ekran tepasiga, 1 — pastiga
   if (known.current === null && state.items.length) known.current = new Set(state.items.map((item) => item.id));
 
   // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
@@ -231,13 +245,50 @@ export function LoadsFeed() {
     }
     jumped.current = true;
     // eng eski ko'rilmagani ekran pastida — undan yuqoridagilarni ketma-ket o'qib chiqasiz
+    viewPos.current = 1;
     list.scrollToIndex({ index: target.index, viewPosition: 1, animated: true });
   };
   // Karta hali o'lchanmagan (uzoqda) — taxminiy joyga, keyin aniq o'ziga
   const onScrollToIndexFailed = ({ index, averageItemLength }) => {
     listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: true });
-    setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: 1, animated: true }), 350);
+    setTimeout(() => listRef.current?.scrollToIndex({ index, viewPosition: viewPos.current, animated: true }), 350);
   };
+  // Bildirishnoma bosildi: lenta kutmasdan darhol so'raladi (3 soniyalik navbatni kutmaydi)
+  useEffect(() => {
+    if (!openPost || idle) return undefined;
+    const timer = setTimeout(() => load("silent"), 0);
+    return () => clearTimeout(timer);
+  }, [openPost, idle, load]);
+  // E'lon ro'yxatga tushdi — ekran tepasiga olib kelinadi va yashil bilan belgilanadi; 15 soniyada topilmasa (eskirgan) — xabar
+  useEffect(() => {
+    if (!openPost || loading) return undefined;
+    const index = items.findIndex((item) => String(item.id) === openPost.id);
+    if (index < 0) {
+      const left = 15_000 - (Date.now() - openPost.at);
+      const timer = setTimeout(() => {
+        clearOpenPost();
+        toast("Bu e'lon endi lentada yo'q (10 daqiqadan eski)");
+      }, Math.max(left, 0));
+      return () => clearTimeout(timer);
+    }
+    // Tozalash timer ichida: clearOpenPost effektni qayta ishga tushiradi — oldinroq qilinsa, scroll bekor bo'lardi
+    const id = items[index].id;
+    const timer = setTimeout(() => {
+      clearOpenPost();
+      setTargetId(id);
+      viewPos.current = 0;
+      listRef.current?.scrollToIndex({ index, viewPosition: 0, animated: true });
+    }, 50); // ro'yxat chizilib bo'lsin
+    return () => clearTimeout(timer);
+  }, [openPost, items, loading]);
+
+  // Yashil belgi o'chgach — bo'shatiladi (xuddi shu e'lonning bildirishnomasi yana bosilsa, yana yonadi)
+  useEffect(() => {
+    if (targetId == null) return undefined;
+    const timer = setTimeout(() => setTargetId(null), 4500);
+    return () => clearTimeout(timer);
+  }, [targetId]);
+
   const showJump = !loading && items.length > 0 && (scrolled || unseen.size > 0);
 
   // Qotib turadigan tepa qism: pauza, filtr (yoki yo'nalish) qatori, xato
@@ -280,7 +331,7 @@ export function LoadsFeed() {
         data={loading ? [] : items}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
-          <Appear isNew={fresh.has(item.id)}>
+          <Appear isNew={fresh.has(item.id)} isTarget={item.id === targetId}>
             <k.Card item={item} />
           </Appear>
         )}
@@ -372,6 +423,8 @@ const styles = themed(() =>
   barText: { flex: 1, fontSize: 14, color: colors.barText, fontWeight: "600" },
   bold: { fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
+  // bildirishnomadan ochilgan e'lon hoshiyasi (Appear)
+  target: { position: "absolute", top: -2, left: -2, right: -2, bottom: -2, borderRadius: radius + 2, borderWidth: 3, borderColor: colors.ok },
   jump: { position: "absolute", right: space.lg, bottom: space.lg, alignItems: "center" },
   jumpBtn: {
     width: 48,
