@@ -321,7 +321,12 @@ function JumpButton({ count, onPress }) {
   return (
     <Animated.View style={[styles.jump, { opacity: anim, transform: [{ scale: anim }] }]}>
       <Pressable onPress={onPress} style={styles.jumpBtn} hitSlop={8} accessibilityLabel="Tepaga">
-        <Text style={styles.jumpArrow}>↑</Text>
+        {/* Strelka chiziqlardan chiziladi — «↑» harfi juda ingichka chiqardi (Azimjon: «sal qalinroq») */}
+        <View style={styles.arrow} pointerEvents="none">
+          <View style={[styles.arrowWing, styles.arrowLeft]} />
+          <View style={[styles.arrowWing, styles.arrowRight]} />
+          <View style={styles.arrowStem} />
+        </View>
       </Pressable>
       {count > 0 ? (
         <View style={styles.jumpBadge} pointerEvents="none">
@@ -383,7 +388,11 @@ const styles = themed(() =>
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
   },
-  jumpArrow: { fontSize: 24, lineHeight: 28, color: colors.accent, fontWeight: "700" },
+  arrow: { width: 22, height: 22 },
+  arrowStem: { position: "absolute", left: 9.5, top: 2, width: 3, height: 19, borderRadius: 1.5, backgroundColor: colors.accent },
+  arrowWing: { position: "absolute", top: 5.5, width: 13, height: 3, borderRadius: 1.5, backgroundColor: colors.accent },
+  arrowLeft: { left: 1.5, transform: [{ rotate: "-45deg" }] },
+  arrowRight: { right: 1.5, transform: [{ rotate: "45deg" }] },
   jumpBadge: {
     position: "absolute",
     top: -10,

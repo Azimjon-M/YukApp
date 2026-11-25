@@ -28,5 +28,6 @@ test("ko'rilgan va eskirib ketganlar chiqariladi", () => {
 
 test("son matni", () => {
   assert.equal(unseenText(7), "7");
-  assert.equal(unseenText(150), "99+");
+  assert.equal(unseenText(99), "99");
+  assert.equal(unseenText(150), "99");
 });

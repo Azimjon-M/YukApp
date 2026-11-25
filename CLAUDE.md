@@ -52,6 +52,17 @@ fetch versioned docs, `npx expo install`, never edit `android/`). Project backgr
   loads arrive on top. Round «↑» button bottom-right with the count of new loads above the viewport (pure logic
   `src/unseenJump.js`, tested; viewability ≥60% = seen): 1st press → oldest unseen (`scrollToIndex`, viewPosition 1),
   next press → top.
+- **Push notifications (0.10.0, 2026-11-25, his «notification … boshida so'rattirsang … skip … muloyimlik bilan yana
+  so'ratish … Qayerdan qayergaligi va telefon qilish»):** `expo-notifications` (plugin: monochrome icon, color, default
+  channel `yuklar`). `src/notify.js`: channel `yuklar` (HIGH), category `yuk` with action `call` «📞 Qo'ng'iroq qilish»;
+  foreground → nothing shown (feed shows it); tap → `/`, `call` → `tel:` from `data.phone`; FCM device token →
+  `POST /pub/me/push {token, platform}` (**server endpoint not made yet** — 404 is ignored). Ask flow `src/notifyAsk.js`
+  (tested) + `components/NotifyPrompt.js` Modal in `(app)/_layout`: first login «Yoqish / Keyinroq», still off → every
+  3 days «Yoqish / Keyinroq / Kerak emas» (never again); `!canAskAgain` → `Linking.openSettings()`. Sozlamalar → E'lon
+  has «📲 Telefonga bildirishnoma». `google-services.json` is gitignored, plugged in by `app.config.js` only if present
+  (no file = no token, app still builds). Server must send **data-only** FCM v1 messages, android priority high, data:
+  `title` («📍 Qayerdan → Qayerga»), `message` (text), `channelId: "yuklar"`, `categoryId: "yuk"`, `body` = JSON string
+  `{"phone":"+998…","postId":…}` (becomes `content.data`) — keys from expo-notifications `NotificationData.kt`.
 - v1 does NOT have: settings form (driver vehicle / shipper filter — users go to the bot), «📦 Yuk berish», maps,
   phone share, push notifications. «Hisobdan chiqish» offers «Faqat ilovadan» (token only) or «Butunlay» (POST logout).
 - Testing without his Telegram: scratch fake server (real `public.js` + in-memory store + auto-confirm of app logins)

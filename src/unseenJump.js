@@ -31,5 +31,5 @@ export function jumpTarget(items, unseen, jumped) {
   return { top: true };
 }
 
-// Tugmadagi son: 99 dan ko'p bo'lsa «99+»
-export const unseenText = (count) => (count > 99 ? "99+" : String(count));
+// Tugmadagi son: ko'pi bilan 99 (Azimjon: «max 99 da to'xtasin»)
+export const unseenText = (count) => String(Math.min(count, 99));

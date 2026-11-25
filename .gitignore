@@ -45,3 +45,6 @@ yarn-error.*
 
 # yig'ilgan APK fayllar (npm run apk)
 /apk/
+
+# Firebase (bildirishnoma) — faqat kompyuterda
+/google-services.json

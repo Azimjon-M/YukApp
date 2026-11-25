@@ -2,13 +2,17 @@
 //   (asosiy)    → 📋 Yuklar / 🚚 Bo'sh mashinalar · 🎛 Filtr · ⏸ Pauza («🔴 yangi yuklar» belgisi — newLoads.js)
 //   sozlamalar  → «E'lon sozlamalari» · «Hisob sozlamalari»
 //   haqida      → Dastur haqida (muallif, qo'llab-quvvatlash)
+// Bildirishnoma: token serverga, bosilganda Yuklar / qo'ng'iroq (notify.js), ruxsat so'rash oynasi (NotifyPrompt).
 // Bo'limlar orasida Stack: Android «orqaga» tugmasi oldingi bo'limga qaytaradi.
 import { Stack } from "expo-router";
+import { NotifyPrompt } from "../../components/NotifyPrompt.js";
 import { MenuButton, SideMenuProvider } from "../../components/SideMenu.js";
 import { NewLoadsProvider } from "../../newLoads.js";
+import { useNotifications } from "../../notify.js";
 import { colors } from "../../theme.js";
 
 export default function AppLayout() {
+  useNotifications(true);
   return (
     <NewLoadsProvider>
     <SideMenuProvider>
@@ -34,6 +38,7 @@ export default function AppLayout() {
           }}
         />
       </Stack>
+      <NotifyPrompt />
     </SideMenuProvider>
     </NewLoadsProvider>
   );

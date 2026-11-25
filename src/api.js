@@ -151,3 +151,6 @@ export const saveRoute = (from, to) => request("PUT", "/pub/me/route", { body: {
 export const getFeedSources = () => request("GET", "/pub/me/feed-sources");
 // Sozlamalarni saqlash (botdagi «💾 Saqlash» bilan bir qoida) → yangilangan me. 400 { error, field }
 export const saveProfile = (profile, role) => request("PUT", "/pub/me/profile", { body: { profile, role } });
+
+// Bildirishnoma uchun telefon tokeni (FCM). Server tomoni hali yo'q bo'lsa 404 — ilova indamaydi (notify.js)
+export const savePushToken = (token) => request("POST", "/pub/me/push", { body: { token, platform: "android" }, retry: false });

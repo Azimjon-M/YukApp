@@ -1,10 +1,12 @@
 // Sozlamalar → «📢 E'lon sozlamalari»: bot yuborishi (faol / pauza), haydovchiga — filtr (o'zgartirish «🎛 Filtr» da),
 // yuk beruvchiga — kerakli mashina (o'zgartirish hozircha botda), eski «🎯 Saralangan» rejimda — yo'nalish.
-import { Linking, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { AppState, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
 import { feedLabel, profileRows, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
 import { setActive } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
+import { enable, permission } from "../../../notify.js";
 import { useSession } from "../../../session.js";
 import { colors, space, themed } from "../../../theme.js";
 import { Button, Hint } from "../../../ui.js";
@@ -45,6 +47,8 @@ export default function AdSettingsScreen() {
         {!canToggle ? <Hint>Yoqish uchun avval «🎛 Filtr» ni saqlang.</Hint> : null}
       </Section>
 
+      {Platform.OS === "android" ? <PushSection /> : null}
+
       {driver ? (
         <Section title="🎛 Filtr — qaysi e'lonlar kelsin">
           {profile ? (
@@ -73,6 +77,30 @@ export default function AdSettingsScreen() {
         </Section>
       ) : null}
     </ScrollView>
+  );
+}
+
+// «📲 Telefonga bildirishnoma»: holati; o'chiq bo'lsa — «Yoqish», yoqilgan bo'lsa — o'chirish telefon sozlamalarida
+function PushSection() {
+  const [granted, setGranted] = useState(null);
+  const check = useCallback(() => permission().then((p) => setGranted(p.granted)), []);
+  useEffect(() => {
+    check();
+    const sub = AppState.addEventListener("change", (next) => next === "active" && check());
+    return () => sub.remove();
+  }, [check]);
+  if (granted === null) return null;
+  return (
+    <Section title="📲 Telefonga bildirishnoma">
+      <Text style={settingsStyles.rowText}>
+        {granted ? "● Yoqilgan — ilova yopiq bo'lsa ham yangi e'lonlar haqida xabar keladi" : "○ O'chiq — telefonga xabar kelmaydi"}
+      </Text>
+      {granted ? (
+        <Button title="Telefon sozlamalari" kind="secondary" onPress={() => Linking.openSettings().catch(() => {})} />
+      ) : (
+        <Button title="🔔 Yoqish" onPress={() => enable().then(setGranted)} />
+      )}
+    </Section>
   );
 }
 
