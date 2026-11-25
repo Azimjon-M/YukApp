@@ -1,11 +1,12 @@
 // Asosiy bo'lim. Pastda: «📋 Yuklar» (yangi yuklar bo'lsa — qizil doirada son) · «🎛 Filtr» (faqat haydovchi) ·
-// «⏸ Pauza» / «▶️ Davom etish» (sahifa emas — bosilsa bot yuborishni to'xtatadi yoki yoqadi, botdagi tugma bilan bir xil).
+// «⏸ Pauza» / «▶️ Davom etish» (sahifa emas — bosilsa ILOVA lentasi va bildirishnomalarini to'xtatadi yoki yoqadi;
+// botdagi pauza alohida — Sozlamalarda yoki botning o'zida).
 // Yuk beruvchida birinchi tab — «🚚 Mashinalar».
 import { useState } from "react";
 import { Pressable } from "react-native";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { setActive } from "../../../api.js";
+import { appOn, setAppActive } from "../../../api.js";
 import { sectionTabOptions, tabIcon } from "../../../components/sectionTabs.js";
 import { showError } from "../../../components/settingsUi.js";
 import { badgeText, useNewLoads } from "../../../newLoads.js";
@@ -19,15 +20,15 @@ export default function MainTabs() {
   const { count } = useNewLoads();
   const [busy, setBusy] = useState(false);
   const shipper = me?.role === "yuk_beruvchi";
-  const active = Boolean(me?.active);
+  const active = appOn(me);
 
   async function togglePause() {
     if (busy) return;
     setBusy(true);
     try {
-      const next = await setActive(!active);
+      const next = await setAppActive(!active);
       setMe(next);
-      toast(next.active ? "▶️ Yoqildi — yuklar yana keladi" : "⏸ To'xtatildi — yuk kelmaydi");
+      toast(appOn(next) ? "▶️ Yoqildi — ilovaga yuklar yana keladi" : "⏸ Ilovada to'xtatildi — bot alohida ishlayveradi");
     } catch (error) {
       showError(error);
     } finally {

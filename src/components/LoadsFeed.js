@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, AppState, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel } from "@yuk/shared";
-import { getFeed, getTrucks } from "../api.js";
+import { appOn, getFeed, getTrucks } from "../api.js";
 import { readCache, writeCache } from "../cache.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
@@ -113,7 +113,7 @@ function Appear({ isNew, isTarget, children }) {
 
 export function LoadsFeed() {
   const { me, refreshMe } = useSession();
-  const paused = me.active === false;
+  const paused = !appOn(me); // ilova pauzasi (botnikidan alohida)
   const { count: freshCount, markSeen } = useNewLoads();
   const kind = me.role === "yuk_beruvchi" ? "mashina" : "yuk";
   const k = KINDS[kind];
@@ -177,7 +177,7 @@ export function LoadsFeed() {
         const data = await k.fetch(mode === "silent" ? { retry: false } : undefined);
         if (id !== request.current) return;
         fails.current = 0;
-        // Pauza botda yoki boshqa joyda o'zgargan bo'lsa — ilovadagi holat yangilanadi (server active ni aytadi)
+        // Ilova pauzasi boshqa telefonda o'zgargan bo'lsa — holat yangilanadi (server lentada active = ilova pauzasi)
         if (typeof data.active === "boolean" && data.active === paused) refreshMe().catch(() => {});
         // Pauzada server bo'sh ro'yxat beradi — oxirgi 10 daqiqalik e'lonlar ekranda qoladi (yangisi qo'shilmaydi)
         if (data.active === false) {
@@ -378,7 +378,7 @@ export function LoadsFeed() {
     <View style={styles.top}>
       {paused ? (
         <View style={styles.paused}>
-          <Text style={styles.pausedText}>⏸ Pauzada — sizga yangi e'lonlar kelmaydi (ilovada ham, botda ham). Qayta yoqish uchun pastdagi «▶️ Davom etish» ni bosing.</Text>
+          <Text style={styles.pausedText}>⏸ Ilova pauzada — bu yerga va bildirishnomaga yangi e'lon kelmaydi (bot alohida). Qayta yoqish uchun pastdagi «▶️ Davom etish» ni bosing.</Text>
         </View>
       ) : null}
       {driver && profile ? (

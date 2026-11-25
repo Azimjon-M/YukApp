@@ -4,7 +4,7 @@
 // Oxirgi ko'rilgan id telefonda saqlanadi (storage.js), ilova qayta ochilganda ham hisob joyidan davom etadi.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
-import { getFeed, getTrucks } from "./api.js";
+import { appOn, getFeed, getTrucks } from "./api.js";
 import { useSession } from "./session.js";
 import { loadValue, saveValue } from "./storage.js";
 
@@ -23,7 +23,7 @@ export function NewLoadsProvider({ children }) {
   const { me } = useSession();
   const kind = me?.role === "yuk_beruvchi" ? "mashina" : "yuk";
   // Haydovchiga «Menga mos» faqat filtr (profil) bo'lsa hisoblanadi; yuk beruvchiga — har doim
-  const enabled = Boolean(me?.active) && (kind === "mashina" || Boolean(me?.profile));
+  const enabled = appOn(me) && (kind === "mashina" || Boolean(me?.profile));
   const profileKey = JSON.stringify(me?.profile ?? null);
   const key = kind === "yuk" ? "yuk_seen_feed" : `yuk_seen_${kind}`; // feed — e'lon id (eski yuk_seen_yuk — yuk id edi)
   const [count, setCount] = useState(0);

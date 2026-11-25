@@ -134,7 +134,12 @@ export const verifyLoginCode = (requestId, code) =>
 
 export const getMe = () => request("GET", "/pub/me");
 export const setRole = (role) => request("PUT", "/pub/me/role", { body: { role } });
+// Pauza ikkita, bir-biridan alohida (Azimjon, 2026-11-25: «Ajrat!»): setActive — bot Telegram'ga yuboradimi;
+// setAppActive — ilova lentasi va telefon bildirishnomalari (pastdagi «⏸ Pauza» tugmasi)
 export const setActive = (active) => request("PATCH", "/pub/me", { body: { active } });
+export const setAppActive = (appActive) => request("PATCH", "/pub/me", { body: { appActive } });
+// me.appActive (yangi server) yoki eski keshdagi me — umumiy active
+export const appOn = (me) => Boolean(me?.appActive ?? me?.active);
 // Hisobdan chiqish serverda: rol va sozlamalar yashiriladi, bot yubormaydi (qayta kirib rol tanlasa — tiklanadi)
 export const signOut = () => request("POST", "/pub/me/logout");
 // Hisobni o'chirish (botdagi /ochirish → «Hammasini o'chirish» bilan bir xil)

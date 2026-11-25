@@ -1,10 +1,10 @@
-// Sozlamalar → «📢 E'lon sozlamalari»: bot yuborishi (faol / pauza), haydovchiga — filtr (o'zgartirish «🎛 Filtr» da),
+// Sozlamalar → «📢 E'lon sozlamalari»: ikkita alohida pauza — bot yuborishi va ilova (lenta + bildirishnoma), haydovchiga — filtr (o'zgartirish «🎛 Filtr» da),
 // yuk beruvchiga — kerakli mashina (o'zgartirish hozircha botda), eski «🎯 Saralangan» rejimda — yo'nalish.
 import { useCallback, useEffect, useState } from "react";
 import { AppState, Linking, Platform, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { router } from "expo-router";
 import { feedLabel, profileRows, routeChosen, routeLabel, sortedReady } from "@yuk/shared";
-import { setActive } from "../../../api.js";
+import { appOn, setActive, setAppActive } from "../../../api.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { batteryLimited, enable, freeBattery, permission } from "../../../notify.js";
 import { useSession } from "../../../session.js";
@@ -21,6 +21,8 @@ export default function AdSettingsScreen() {
   const openBot = () => Linking.openURL(`https://t.me/${botUsername}`).catch(() => {});
 
   const toggleActive = (value) => run("active", async () => setMe(await setActive(value)));
+  const toggleApp = (value) => run("app", async () => setMe(await setAppActive(value)));
+  const appActive = appOn(me);
 
   const rows = profile ? profileRows(profile, scope, role, { web: true }) : [];
   // Yuborishni yoqish mumkinmi: haydovchiga transport kerak (server 409 «no_profile» beradi), yuk beruvchiga — shart emas
@@ -32,10 +34,10 @@ export default function AdSettingsScreen() {
       contentContainerStyle={settingsStyles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} />}
     >
-      <Section title="🔔 Botdan yuborish">
+      <Section title="🔔 E'lonlar kelishi">
         <View style={styles.switchRow}>
           <Text style={settingsStyles.rowText}>
-            {me.active ? "● Faol — mos e'lonlar botga keladi" : "⏸ Pauza — bot yubormaydi"}
+            {me.active ? "🤖 Botda faol — mos e'lonlar Telegram'ga keladi" : "⏸ Bot pauzada — Telegram'ga yubormaydi"}
           </Text>
           <Switch
             value={Boolean(me.active)}
@@ -44,6 +46,13 @@ export default function AdSettingsScreen() {
             trackColor={{ true: colors.accent }}
           />
         </View>
+        <View style={styles.switchRow}>
+          <Text style={settingsStyles.rowText}>
+            {appActive ? "📱 Ilovada faol — lenta va bildirishnomalar" : "⏸ Ilova pauzada — lenta va bildirishnoma yo'q"}
+          </Text>
+          <Switch value={appActive} disabled={!canToggle || busy === "app"} onValueChange={toggleApp} trackColor={{ true: colors.accent }} />
+        </View>
+        <Hint>Ikkalasi alohida: botni to'xtatsangiz ilova ishlayveradi va aksincha.</Hint>
         {!canToggle ? <Hint>Yoqish uchun avval «🎛 Filtr» ni saqlang.</Hint> : null}
       </Section>
 
