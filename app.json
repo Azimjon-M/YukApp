@@ -2,7 +2,7 @@
   "expo": {
     "name": "Yuk Ekspert",
     "slug": "yuk-ekspert",
-    "version": "0.16.0",
+    "version": "0.16.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "yukekspert",
@@ -17,7 +17,7 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "versionCode": 26,
+      "versionCode": 27,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
