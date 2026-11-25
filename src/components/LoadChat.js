@@ -321,6 +321,8 @@ export function LoadChat() {
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior="padding" keyboardVerticalOffset={insets.top + 56}>
+      {/* Tepadagi «E'lon berish» sarlavhasi ostida soya — chat xabarlari u bilan qorishib ketmasin (Azimjon, 2026-11-25) */}
+      <View style={styles.headShadow} pointerEvents="none" />
       <FlatList
         ref={listRef}
         style={styles.page}
@@ -566,6 +568,16 @@ function Voice({ item, mine, onPlay, playback }) {
 const styles = themed(() =>
   StyleSheet.create({
     page: { flex: 1, backgroundColor: colors.bg },
+    headShadow: {
+      height: 1,
+      backgroundColor: colors.line,
+      zIndex: 2,
+      elevation: 6, // Android soyasi
+      shadowColor: colors.shadow, // iOS / web
+      shadowOpacity: 0.18,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+    },
     list: { padding: space.md, gap: space.sm },
     bubble: { maxWidth: "86%", borderRadius: radius + 4, paddingTop: space.sm, paddingBottom: 6, paddingHorizontal: space.md, gap: 6 },
     bot: { alignSelf: "flex-start", backgroundColor: colors.card, borderBottomLeftRadius: 4 },

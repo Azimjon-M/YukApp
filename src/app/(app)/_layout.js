@@ -34,7 +34,7 @@ export default function AppLayout() {
             headerStyle: { backgroundColor: colors.card },
             headerTintColor: colors.text,
             headerTitleStyle: { fontWeight: "700" },
-            headerShadowVisible: false,
+            headerShadowVisible: true, // sarlavha chat xabarlaridan ajralib tursin (ikkalasi bir rangda edi)
           }}
         />
         <Stack.Screen name="sozlamalar" />
