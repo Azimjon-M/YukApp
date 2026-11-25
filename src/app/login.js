@@ -135,12 +135,14 @@ export default function LoginScreen() {
         ) : (
           <Card style={styles.box}>
             <Text style={styles.boxTitle}>Kirish</Text>
-            <Text style={styles.text}>Botda ulashgan telefon raqamingizni yoki Telegram username'ingizni yozing.</Text>
+            <Text style={styles.text}>
+              Botda ulashgan telefon raqamingizni (istalgan davlat, masalan +90 532 123 45 67) yoki Telegram username'ingizni yozing.
+            </Text>
             <TextInput
               style={styles.input}
               value={login}
               onChangeText={setLogin}
-              placeholder="90 123 45 67 yoki @username"
+              placeholder="+998 90 123 45 67 yoki @username"
               placeholderTextColor={colors.hint}
               autoCapitalize="none"
               autoCorrect={false}

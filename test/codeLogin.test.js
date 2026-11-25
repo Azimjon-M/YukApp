@@ -30,6 +30,10 @@ test("parseLogin: telefon raqami va username", () => {
   assert.deepEqual(parseLogin("+998 (90) 123-45-67"), { login: "+998901234567", kind: "phone" });
   assert.deepEqual(parseLogin("@Ali_99"), { login: "@Ali_99", kind: "username" });
   assert.deepEqual(parseLogin("  ali_99 "), { login: "@ali_99", kind: "username" });
+  // chet el raqamlari (ilova global)
+  assert.deepEqual(parseLogin("+90 532 123 45 67"), { login: "+905321234567", kind: "phone" });
+  assert.deepEqual(parseLogin("0532 123 45 67"), { login: "+05321234567", kind: "phone" });
+  assert.deepEqual(parseLogin("+49 151 23456789"), { login: "+4915123456789", kind: "phone" });
   assert.equal(parseLogin("12345"), null);
   assert.equal(parseLogin("@ab"), null);
   assert.equal(parseLogin(""), null);

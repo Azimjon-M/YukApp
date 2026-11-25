@@ -20,8 +20,9 @@ import { telegramUsername, typedPhone } from "@yuk/shared";
 
 export const DEFAULT_DIGITS = 6;
 
-// "90 123 45 67", "+998 90 123-45-67" → { login: "+998901234567", kind: "phone" }; "@Ali_99", "Ali_99" →
-// { login: "@Ali_99", kind: "username" }; boshqasi — null
+// "90 123 45 67", "+998 90 123-45-67" → { login: "+998901234567", kind: "phone" }; istalgan davlat raqami
+// (Azimjon, 2026-11-25: «ilova global bo'lishi kerak») — "+90 532 123 45 67" → "+905321234567", mahalliy "0532 …" ham
+// (server oxirgi raqamlari bo'yicha topadi); "@Ali_99", "Ali_99" → { login: "@Ali_99", kind: "username" }; boshqasi — null
 export function parseLogin(raw) {
   const text = String(raw ?? "").trim();
   if (!text) return null;
@@ -31,11 +32,13 @@ export function parseLogin(raw) {
     return name ? { login: `@${name}`, kind: "username" } : null;
   }
   const phone = typedPhone(text);
-  return phone ? { login: phone, kind: "phone" } : null;
+  if (phone) return { login: phone, kind: "phone" };
+  const digits = text.replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15 ? { login: `+${digits}`, kind: "phone" } : null;
 }
 
 export const BAD_LOGIN =
-  "Telefon raqamini (masalan, 90 123 45 67) yoki Telegram username'ingizni (masalan, @ism_familiya) yozing.";
+  "Telefon raqamini (masalan, 90 123 45 67 yoki chet el raqami +90 532 123 45 67) yoki Telegram username'ingizni (masalan, @ism_familiya) yozing.";
 
 const PROBLEMS = new Set(["not_found", "not_member", "bot_blocked"]);
 
