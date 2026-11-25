@@ -89,7 +89,17 @@ function Contacts({ load, post }) {
 }
 
 // Asl e'lon matni — tahrirsiz. Uzun bo'lsa kartaning o'zida aylanadi (overflow), ro'yxat cho'zilib ketmaydi
+// Qisqa matn (ko'pchilik e'lon) — oddiy matn: har kartada alohida aylanadigan quti ochilmaydi, lenta yengil aylanadi
+const SHORT_LINES = 8; // 8 qator × 21 = 168 < rawBox 190
+const fitsBox = (text) => text.split("\n").reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 28)), 0) <= SHORT_LINES;
 function RawText({ text }) {
+  if (fitsBox(text)) {
+    return (
+      <Text style={styles.raw} selectable>
+        {text}
+      </Text>
+    );
+  }
   return (
     <ScrollView style={styles.rawBox} nestedScrollEnabled persistentScrollbar>
       <Text style={styles.raw} selectable>

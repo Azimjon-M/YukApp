@@ -186,9 +186,10 @@ export function readUpload({ status, body }) {
 // view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
 export const getLoads = (params = {}) => request("GET", `/pub/loads?${query(params)}`);
 // Ilova lentasi (haydovchiga): bot yuboradigan asl e'lonlar, filtr bo'yicha — { minutes, limit } → { total, items }
-export const getFeed = (params = {}) => request("GET", `/pub/feed?${query(params)}`);
+// options: { retry: false } — lenta har 3 soniyada o'zi qayta so'raydi, ichkarida qayta urinish kerak emas
+export const getFeed = (params = {}, options) => request("GET", `/pub/feed?${query(params)}`, options);
 // Bo'sh mashinalar (yuk beruvchiga) — xuddi shunday
-export const getTrucks = (params = {}) => request("GET", `/pub/trucks?${query(params)}`);
+export const getTrucks = (params = {}, options) => request("GET", `/pub/trucks?${query(params)}`, options);
 
 // Haydovchining yo'nalishi: { from?, hours } → { from, hours, areas: [{ id, label, count }], any }
 export const getRoute = (params = {}) => request("GET", `/pub/me/route?${query(params)}`);

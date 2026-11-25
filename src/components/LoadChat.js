@@ -6,7 +6,7 @@
 // ovozni bosib eshitadi. Ilova ichida tezlik uchun oxirgi holat xotirada ham turadi.
 // 🎤: bosib turing — yoziladi, qo'yib yuborsangiz — ketadi; chapga suring — bekor; tepaga suring — qulf (qo'lsiz yozish).
 // Ilovada rol yo'q — e'lonni har kim beradi.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -33,6 +33,7 @@ import {
   useAudioRecorderState,
 } from "expo-audio";
 import { File, UploadType } from "expo-file-system";
+import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { cancelLoad, confirmLoad, getLoadChat, pickLoadPhone, readUpload, sendLoadText, voiceSource, voiceUpload } from "../api.js";
 import { useSession } from "../session.js";
@@ -72,6 +73,7 @@ const timeOf = (at) => (at ? new Date(at).toLocaleTimeString("ru-RU", { hour: "2
 // Xotiradagi oxirgi holat (bo'limdan chiqib qaytsa darhol ko'rinadi; server baribir yangilaydi)
 let memory = { chatId: null, messages: [], intro: "", quota: null };
 let localId = 0;
+const TYPING = { id: "typing", from: "bot", typing: true };
 
 // Server xabarlarini ro'yxatga qo'shish: bir xil id — yangisi bilan almashadi; tugmalar faqat eng oxirgi faol savolda.
 // Mening amalim (yozdim, bekor qildim, raqam berdim…) javobida — eski savollarning tugmalari darhol yo'qoladi (Azimjon,
@@ -121,6 +123,8 @@ export function LoadChat() {
   const toGuide = () => {
     setGuideOpen(true);
     listRef.current?.scrollToEnd({ animated: true });
+    // uzun suhbatda tepadagi xabarlar hali o'lchanmagan bo'lishi mumkin — birinchi urinish yetib bormasa, yana bir marta
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 450);
   };
   const lastId = messages.filter((m) => !m.local).reduce((max, m) => Math.max(max, m.id), 0);
 
@@ -180,8 +184,9 @@ export function LoadChat() {
   }, [waitUntil, lastId, apply]);
 
   // Bitta amal: xabarim darhol (🕓), keyin server javobi
+  // → true: o'tdi; false: o'tmadi (yoki boshqa amal ketyapti)
   const run = async (mine, job) => {
-    if (busy) return;
+    if (busy) return false;
     const temp = mine ? { id: `p${++localId}`, from: "me", pending: true, at: Date.now(), ...mine } : null;
     if (temp) setPending((list) => [...list, temp]);
     setBusy(true);
@@ -190,8 +195,10 @@ export function LoadChat() {
       // O'zim yozgan ovozni darhol eshita olay: server xabariga telefondagi fayl ulanadi
       if (temp?.localUri && data?.messages?.[0]?.audio) data.messages[0] = { ...data.messages[0], localUri: temp.localUri };
       apply(data);
+      return true;
     } catch (error) {
-      setMessages((list) => [...list, { id: `e${++localId}`, from: "bot", text: `⚠️ ${error.message}`, at: Date.now(), local: true }]);
+      if (alive.current) setMessages((list) => [...list, { id: `e${++localId}`, from: "bot", text: `⚠️ ${error.message}`, at: Date.now(), local: true }]);
+      return false;
     } finally {
       if (temp) setPending((list) => list.filter((m) => m.id !== temp.id));
       if (alive.current) setBusy(false);
@@ -202,7 +209,10 @@ export function LoadChat() {
     const value = text.trim();
     if (!value) return;
     setText("");
-    run({ text: value }, () => sendLoadText(value));
+    // Yuborilmadi (internet uzildi…) — yozgani yo'qolmaydi: maydonga qaytadi, qayta yuborsa bo'ladi
+    run({ text: value }, () => sendLoadText(value)).then((ok) => {
+      if (!ok && alive.current) setText((now) => now || value);
+    });
   };
   // Raqam oynasi: raqamni tekshirib (tahrirlab) «✅ Yuborish» — raqam yoziladi va e'lon shu zahoti ketadi
   const sendWithPhone = (phone) => {
@@ -219,6 +229,24 @@ export function LoadChat() {
   const confirm = () => run({ text: "✅ Yuborish" }, () => confirmLoad());
   const cancel = () => run({ text: "❌ Bekor qilish" }, () => cancelLoad());
 
+  // --- ▶️ Tinglash (bitta umumiy pleer) ---
+  const player = useAudioPlayer(null);
+  const playing = useAudioPlayerStatus(player);
+  const [playingId, setPlayingId] = useState(null);
+  const togglePlay = (m) => {
+    if (playingId === m.id) {
+      if (playing.playing) player.pause();
+      else {
+        if (playing.didJustFinish || (playing.duration && playing.currentTime >= playing.duration - 0.1)) player.seekTo(0);
+        player.play();
+      }
+      return;
+    }
+    setPlayingId(m.id);
+    player.replace(m.localUri ? { uri: m.localUri } : voiceSource(m.id));
+    player.play();
+  };
+
   // --- 🎤 Ovoz yozish ---
   const recorder = useAudioRecorder(VOICE_OPTIONS);
   const rec = useAudioRecorderState(recorder, 150);
@@ -229,12 +257,14 @@ export function LoadChat() {
     modeRef.current = next;
     setMode(next);
   }, []);
-  const durationRef = useRef(0);
-  useEffect(() => {
-    durationRef.current = rec.durationMillis;
-  }, [rec.durationMillis]);
+  // Yozuv uzunligi o'zimiz o'lchaymiz: yozish boshlanmagan bo'lsa 0. (Oldin rekorderning oxirgi qiymati olinardi —
+  // tez bosib qo'yib yuborilsa OLDINGI yozuvning vaqti va fayli bilan eski ovoz qayta ketib qolishi mumkin edi)
+  const startedAt = useRef(0);
+  const starting = useRef(false);
 
   const startRec = async () => {
+    if (starting.current) return; // oldingi bosish hali tayyorlanyapti — o'sha davom etadi
+    starting.current = true;
     try {
       const has = await getRecordingPermissionsAsync();
       if (!has.granted) {
@@ -251,11 +281,15 @@ export function LoadChat() {
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       if (modeRef.current === "idle") return; // tayyorlanguncha qo'yib yubordi
+      if (playing.playing) player.pause(); // eshitilayotgan ovoz yozuvga tushmasin
       recorder.record();
+      startedAt.current = Date.now();
       Vibration.vibrate(30);
     } catch {
       toast("Ovoz yozib bo'lmadi — yozib yuboring");
       setModeBoth("idle");
+    } finally {
+      starting.current = false;
     }
   };
   const stopRec = async () => {
@@ -264,12 +298,13 @@ export function LoadChat() {
     return recorder.uri;
   };
   const finishVoice = async (keep) => {
-    const ms = durationRef.current;
+    const ms = startedAt.current ? Date.now() - startedAt.current : 0;
+    startedAt.current = 0;
     setModeBoth("idle");
     drag.setValue({ x: 0, y: 0 });
-    const uri = await stopRec();
+    const uri = await stopRec(); // yozish boshlanmagan bo'lsa ham — tayyorlangan rekorder bo'shatiladi
     if (!keep) return;
-    if (!uri || ms < VOICE_MIN_MS) {
+    if (!ms || !uri || ms < VOICE_MIN_MS) {
       toast("Kamida 3 soniya gapiring — mikrofonni bosib turing");
       return;
     }
@@ -325,28 +360,42 @@ export function LoadChat() {
     return () => clearTimeout(timer);
   }, [rec.isRecording, rec.durationMillis]);
 
-  // --- ▶️ Tinglash (bitta umumiy pleer) ---
-  const player = useAudioPlayer(null);
-  const playing = useAudioPlayerStatus(player);
-  const [playingId, setPlayingId] = useState(null);
-  const togglePlay = (m) => {
-    if (playingId === m.id) {
-      if (playing.playing) player.pause();
-      else {
-        if (playing.didJustFinish || (playing.duration && playing.currentTime >= playing.duration - 0.1)) player.seekTo(0);
-        player.play();
-      }
-      return;
-    }
-    setPlayingId(m.id);
-    player.replace(m.localUri ? { uri: m.localUri } : voiceSource(m.id));
-    player.play();
-  };
+  // Boshqa bo'limga o'tilsa: ovoz to'xtaydi, yozilayotgani bekor bo'ladi (ekran orqada tirik qoladi)
+  useFocusEffect(
+    useCallback(
+      () => () => {
+        try {
+          player.pause();
+        } catch {
+          // pleer allaqachon yopilgan
+        }
+        if (modeRef.current !== "idle") handlers.current.finish?.(false);
+      },
+      [player],
+    ),
+  );
+
+  // Bubble'ga beriladigan amallar o'zgarmas — yozayotganda (har harfda) xabarlar qayta chizilmaydi
+  const actions = useRef({});
+  useEffect(() => {
+    actions.current = { onPhone: sendWithPhone, onEdit: editText, onConfirm: confirm, onCancel: cancel, onPlay: togglePlay };
+  });
+  const [act] = useState(() => ({
+    onPhone: (value) => actions.current.onPhone?.(value),
+    onEdit: (value) => actions.current.onEdit?.(value),
+    onConfirm: () => actions.current.onConfirm?.(),
+    onCancel: () => actions.current.onCancel?.(),
+    onPlay: (item) => actions.current.onPlay?.(item),
+  }));
+  const renderItem = useCallback(
+    ({ item }) => <Bubble item={item} {...act} busy={busy} playback={playingId === item.id ? playing : null} />,
+    [act, busy, playingId, playing],
+  );
 
   const recording = mode !== "idle";
   // Ro'yxat teskari (inverted, Telegram'dagidek): eng yangisi pastda va ekran pastga «mahkamlangan» — klaviatura ochilganda,
   // yozish maydoni kattalashganda ham sakramaydi (oldin scrollToEnd ba'zan tepaga otib yuborardi, Azimjon 2026-11-25)
-  const all = [...messages, ...pending, ...(busy ? [{ id: "typing", from: "bot", typing: true }] : [])].reverse();
+  const all = useMemo(() => [...messages, ...pending, ...(busy ? [TYPING] : [])].reverse(), [messages, pending, busy]);
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior="padding" keyboardVerticalOffset={insets.top + 56}>
@@ -382,18 +431,7 @@ export function LoadChat() {
             {intro ? <Bubble item={{ id: "intro", from: "bot", text: intro }} /> : null}
           </>
         }
-        renderItem={({ item }) => (
-          <Bubble
-            item={item}
-            onPhone={sendWithPhone}
-            onEdit={editText}
-            onConfirm={confirm}
-            onCancel={cancel}
-            busy={busy}
-            onPlay={togglePlay}
-            playback={playingId === item.id ? playing : null}
-          />
-        )}
+        renderItem={renderItem}
         keyboardShouldPersistTaps="handled"
       />
       {pinned ? (
@@ -543,7 +581,7 @@ function PhoneAsk({ phones, onSend, onCancel, busy }) {
   );
 }
 
-function Bubble({ item, onPhone, onEdit, onConfirm, onCancel, busy, onPlay, playback }) {
+const Bubble = memo(function Bubble({ item, onPhone, onEdit, onConfirm, onCancel, busy, onPlay, playback }) {
   const mine = item.from === "me";
   if (item.typing) {
     return (
@@ -594,7 +632,7 @@ function Bubble({ item, onPhone, onEdit, onConfirm, onCancel, busy, onPlay, play
       ) : null}
     </View>
   );
-}
+});
 
 // Ovozli xabar: ▶️/⏸, chiziq (qancha eshitildi), vaqt
 function Voice({ item, mine, onPlay, playback }) {

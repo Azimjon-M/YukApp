@@ -33,8 +33,8 @@ const KEEP = { minIndexForVisible: 0 };
 
 const KINDS = {
   // Haydovchiga — botdagidek asl e'lonlar (/pub/feed, AI'siz, hammasi); yuk beruvchiga — bo'sh mashinalar (server 1 soatdan kam bermaydi)
-  yuk: { fetch: () => getFeed({ minutes: 10, limit: LIMIT }), Card: LoadCard, many: "e'lon" },
-  mashina: { fetch: () => getTrucks({ view: "mine", hours: 1, limit: LIMIT }), Card: TruckCard, many: "bo'sh mashina" },
+  yuk: { fetch: (options) => getFeed({ minutes: 10, limit: LIMIT }, options), Card: LoadCard, many: "e'lon" },
+  mashina: { fetch: (options) => getTrucks({ view: "mine", hours: 1, limit: LIMIT }, options), Card: TruckCard, many: "bo'sh mashina" },
 };
 
 // Kesh: boshqa sahifaga o'tib qaytganda, ilovani yopib ochganda, rejim almashganda va pauzada ham oxirgi 10 daqiqalik
@@ -58,6 +58,23 @@ const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
 // Eng tepada — eng oxirgi KELGANI (id o'sib boradi). E'lon vaqti bo'yicha tartibda kech yetib kelgan e'lon 2-3-o'ringa
 // tushib qolardi va animatsiya «tepadagidan pastdagisida» ko'rinardi (Azimjon, 2026-11-25)
 const fresh10 = (items, now) => items.filter((item) => now - timeOf(item) <= WINDOW_MS).sort((a, b) => Number(b.id) - Number(a.id));
+
+// Har 3 soniyada server ro'yxatni yangi obyektlar bilan beradi. O'zgarmagan e'lonning eski obyekti qaytariladi — kartasi
+// qayta chizilmaydi (LoadCard memo); hech narsa o'zgarmagan bo'lsa ro'yxatning o'zi qaytadi — ekran umuman qayta chizilmaydi
+function reuse(prev, next) {
+  if (!prev.length) return next;
+  const old = new Map(prev.map((item) => [item.id, item]));
+  let same = prev.length === next.length;
+  const out = next.map((item, i) => {
+    const was = old.get(item.id);
+    const keep = was && JSON.stringify(was) === JSON.stringify(item) ? was : item;
+    if (keep !== prev[i]) same = false;
+    return keep;
+  });
+  return same ? prev : out;
+}
+const SILENT_WAIT_MS = 25_000; // jim so'rov shuncha javob bermasa — yangisi yuboriladi
+const SILENT_FAILS = 3; // jim yangilash ketma-ket shuncha marta o'tmasa — tepada xato qatori (bir martalik uzilish ko'rsatilmaydi)
 
 // Yangi kelgan kartochka: tepadan siljib chiqadi va 1.5 soniya ko'k hoshiya bilan yonadi.
 // Bildirishnomadan ochilgan e'lon (isTarget): 2.5 soniya yashil hoshiya, keyin asta o'chadi
@@ -115,6 +132,10 @@ export function LoadsFeed() {
     return { items, fresh: new Set(), loading: !items.length && !cachedFeed(cacheKey, profileKey), refreshing: false, error: null, profileKey };
   });
   const request = useRef(0); // eng oxirgi so'rov raqami: eski javob yangisini bosib ketmasin
+  // Sekin internetda javob 3 soniyadan kech kelsa, keyingi jim so'rov uni «eskirgan» qilib tashlardi va lenta umuman
+  // yangilanmay qolardi. Endi jim so'rov oldingisi tugaguncha kutadi
+  const flying = useRef(0); // ketayotgan so'rov boshlangan vaqt (0 — yo'q)
+  const fails = useRef(0); // ketma-ket o'tmagan jim so'rovlar
   const focused = useRef(false);
   // ko'rilgan id'lar (animatsiya faqat yangisiga): keshdagilar — ko'rilgan; null = birinchi yuklash (animatsiyasiz)
   const known = useRef(null);
@@ -147,11 +168,15 @@ export function LoadsFeed() {
   // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
   const load = useCallback(
     async (mode = "full") => {
+      if (mode === "silent" && flying.current && Date.now() - flying.current < SILENT_WAIT_MS) return;
       const id = ++request.current;
-      setState((s) => ({ ...s, loading: mode === "full" || s.loading, refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
+      flying.current = Date.now();
+      // jim yangilashda holat o'zgarmaydi — ekran bekorga qayta chizilmasin
+      if (mode !== "silent") setState((s) => ({ ...s, loading: mode === "full" || s.loading, refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
       try {
-        const data = await k.fetch();
+        const data = await k.fetch(mode === "silent" ? { retry: false } : undefined);
         if (id !== request.current) return;
+        fails.current = 0;
         // Pauza botda yoki boshqa joyda o'zgargan bo'lsa — ilovadagi holat yangilanadi (server active ni aytadi)
         if (typeof data.active === "boolean" && data.active === paused) refreshMe().catch(() => {});
         // Pauzada server bo'sh ro'yxat beradi — oxirgi 10 daqiqalik e'lonlar ekranda qoladi (yangisi qo'shilmaydi)
@@ -159,7 +184,7 @@ export function LoadsFeed() {
           setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error: null }));
           return;
         }
-        const items = fresh10(data.items, Date.now());
+        const items = reuse(itemsRef.current, fresh10(data.items, Date.now()));
         const ids = items.map((item) => item.id).join(",");
         if (ids !== lastIds.current) {
           lastIds.current = ids;
@@ -169,14 +194,21 @@ export function LoadsFeed() {
         const seen = known.current;
         const fresh = new Set(seen ? items.filter((item) => !seen.has(item.id)).map((item) => item.id) : []);
         known.current = new Set(items.map((item) => item.id));
-        setState({ items, fresh, loading: false, refreshing: false, error: null, profileKey });
+        setState((s) =>
+          s.items === items && !s.fresh.size && !fresh.size && !s.loading && !s.refreshing && !s.error && s.profileKey === profileKey
+            ? s
+            : { items, fresh, loading: false, refreshing: false, error: null, profileKey },
+        );
         itemsRef.current = items;
         setUnseen((u) => dropUnseen(addUnseen(u, [...fresh], atTop.current && !holdRef.current), [], items));
         if (focused.current) markSeen(data.items);
       } catch (error) {
         if (id !== request.current) return;
         // Jim yangilashda xato bo'lsa — eski ro'yxat qoladi (10 daqiqadan eskisi baribir yo'qoladi), tepada qator
-        setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error }));
+        const show = mode !== "silent" || ++fails.current >= SILENT_FAILS;
+        setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error: show ? error : s.error }));
+      } finally {
+        if (id === request.current) flying.current = 0;
       }
     },
     [k, profileKey, cacheKey, markSeen, paused, refreshMe],
