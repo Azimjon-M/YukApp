@@ -9,6 +9,7 @@ import { Animated, AppState, FlatList, RefreshControl, StyleSheet, Text, View } 
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel } from "@yuk/shared";
 import { getFeed, getTrucks } from "../api.js";
+import { readCache, writeCache } from "../cache.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
@@ -24,6 +25,23 @@ const KINDS = {
   yuk: { fetch: () => getFeed({ minutes: 10, limit: LIMIT }), Card: LoadCard, many: "e'lon" },
   mashina: { fetch: () => getTrucks({ view: "mine", hours: 1, limit: LIMIT }), Card: TruckCard, many: "bo'sh mashina" },
 };
+
+// Kesh: boshqa sahifaga o'tib qaytganda, ilovani yopib ochganda, rejim almashganda va pauzada ham oxirgi 10 daqiqalik
+// e'lonlar darhol, joyidan ko'rinadi (Azimjon, 2026-11-25). Xotirada (tez) + faylda (ilova yopilsa ham)
+const memory = new Map(); // kalit → { profileKey, items }
+function cachedFeed(key, profileKey) {
+  let hit = memory.get(key);
+  if (!hit) {
+    hit = readCache(key);
+    if (hit) memory.set(key, hit);
+  }
+  return hit && hit.profileKey === profileKey && Array.isArray(hit.items) ? hit.items : null;
+}
+function rememberFeed(key, profileKey, items) {
+  const hit = { profileKey, items };
+  memory.set(key, hit);
+  writeCache(key, hit);
+}
 
 const timeOf = (item) => item.post?.postedAt ?? item.createdAt ?? 0;
 // Eng tepada — eng oxirgi KELGANI (id o'sib boradi). E'lon vaqti bo'yicha tartibda kech yetib kelgan e'lon 2-3-o'ringa
@@ -71,27 +89,44 @@ export function LoadsFeed() {
   // Filtr yoki yo'nalish o'zgarsa (shu ilovada yoki botda) — ro'yxat qaytadan so'raladi
   const profileKey = JSON.stringify(profile ?? null);
 
-  const [state, setState] = useState({ items: [], fresh: new Set(), loading: true, refreshing: false, error: null });
+  const cacheKey = `feed_${me.chatId}_${kind}`;
+  const [state, setState] = useState(() => {
+    const items = fresh10(cachedFeed(cacheKey, profileKey) ?? [], Date.now());
+    return { items, fresh: new Set(), loading: !items.length && !cachedFeed(cacheKey, profileKey), refreshing: false, error: null, profileKey };
+  });
   const request = useRef(0); // eng oxirgi so'rov raqami: eski javob yangisini bosib ketmasin
   const focused = useRef(false);
-  const known = useRef(null); // ko'rilgan id'lar: null = birinchi yuklash (animatsiyasiz)
+  // ko'rilgan id'lar (animatsiya faqat yangisiga): keshdagilar — ko'rilgan; null = birinchi yuklash (animatsiyasiz)
+  const known = useRef(null);
+  const lastIds = useRef("");
+  if (known.current === null && state.items.length) known.current = new Set(state.items.map((item) => item.id));
 
   // mode: "full" (spinner) | "silent" (jimgina yangilash) | "refresh" (pastga tortdi)
   const load = useCallback(
     async (mode = "full") => {
       const id = ++request.current;
-      setState((s) => ({ ...s, loading: mode === "full", refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
+      setState((s) => ({ ...s, loading: mode === "full" || s.loading, refreshing: mode === "refresh", error: mode === "full" ? null : s.error }));
       try {
         const data = await k.fetch();
         if (id !== request.current) return;
         // Pauza botda yoki boshqa joyda o'zgargan bo'lsa — ilovadagi holat yangilanadi (server active ni aytadi)
         if (typeof data.active === "boolean" && data.active === paused) refreshMe().catch(() => {});
+        // Pauzada server bo'sh ro'yxat beradi — oxirgi 10 daqiqalik e'lonlar ekranda qoladi (yangisi qo'shilmaydi)
+        if (data.active === false) {
+          setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error: null }));
+          return;
+        }
         const items = fresh10(data.items, Date.now());
+        const ids = items.map((item) => item.id).join(",");
+        if (ids !== lastIds.current) {
+          lastIds.current = ids;
+          rememberFeed(cacheKey, profileKey, items);
+        }
         // Oldin ko'rilmagan id'lar — yangi (animatsiya); birinchi yuklashda hech biri yangi emas
         const seen = known.current;
         const fresh = new Set(seen ? items.filter((item) => !seen.has(item.id)).map((item) => item.id) : []);
         known.current = new Set(items.map((item) => item.id));
-        setState({ items, fresh, loading: false, refreshing: false, error: null });
+        setState({ items, fresh, loading: false, refreshing: false, error: null, profileKey });
         if (focused.current) markSeen(data.items);
       } catch (error) {
         if (id !== request.current) return;
@@ -99,17 +134,19 @@ export function LoadsFeed() {
         setState((s) => ({ ...s, items: fresh10(s.items, Date.now()), loading: false, refreshing: false, error }));
       }
     },
-    // profileKey so'rovda ishlatilmaydi, lekin o'zgarsa load yangilanadi → pastdagi useEffect ro'yxatni qayta so'raydi
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [k, profileKey, markSeen, paused, refreshMe],
+    [k, profileKey, cacheKey, markSeen, paused, refreshMe],
   );
 
-  // Filtr o'zgardi — boshidan (eski ro'yxat animatsiyasiz almashadi)
+  // Filtr o'zgardi (shu ilovada yoki botda) — boshidan: keshdagi eski filtr ro'yxati ko'rsatilmaydi, animatsiyasiz
   useEffect(() => {
-    if (idle) return;
+    if (idle || state.profileKey === profileKey) return;
     known.current = null;
+    lastIds.current = "";
+    setState((s) => ({ ...s, items: [], profileKey, loading: true }));
     load();
-  }, [load, idle]);
+    // faqat filtr o'zgarganda (load har pauza/yangilanishda yangilanadi — har safar boshidan yuklamasin)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileKey, idle]);
 
   // Ekran ko'rinib turganda: darhol, keyin har 3 soniyada jimgina; ilovaga qaytganda — darhol.
   useFocusEffect(
@@ -183,7 +220,7 @@ export function LoadsFeed() {
       <FlatList
         style={styles.page}
         contentContainerStyle={styles.list}
-        data={loading || paused ? [] : items}
+        data={loading ? [] : items}
         keyExtractor={(item) => String(item.id)}
         renderItem={({ item }) => (
           <Appear isNew={fresh.has(item.id)}>
@@ -191,13 +228,13 @@ export function LoadsFeed() {
           </Appear>
         )}
         ListEmptyComponent={
-          paused ? null : loading ? (
+          loading ? (
             <Spinner />
           ) : error ? (
             <Notice title="Ro'yxat ochilmadi" action={<Button title="Qayta urinish" onPress={() => load()} />}>
               {error.message}
             </Notice>
-          ) : (
+          ) : paused ? null : (
             <Notice title="Hozircha yangi e'lon yo'q">
               So'nggi 10 daqiqada filtringizga mos {k.many} chiqmadi. Yangilari shu yerda o'zi paydo bo'ladi.
             </Notice>

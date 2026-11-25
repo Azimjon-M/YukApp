@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { Pressable } from "react-native";
 import { Tabs } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { setActive } from "../../../api.js";
 import { sectionTabOptions, tabIcon } from "../../../components/sectionTabs.js";
 import { showError } from "../../../components/settingsUi.js";
@@ -13,6 +14,7 @@ import { colors } from "../../../theme.js";
 import { toast } from "../../../toast.js";
 
 export default function MainTabs() {
+  const insets = useSafeAreaInsets();
   const { me, setMe } = useSession();
   const { count } = useNewLoads();
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ export default function MainTabs() {
   }
 
   return (
-    <Tabs screenOptions={sectionTabOptions}>
+    <Tabs screenOptions={() => sectionTabOptions(insets)}>
       <Tabs.Screen
         name="index"
         options={{

@@ -8,6 +8,7 @@
 import { createContext, use, useCallback, useEffect, useMemo, useState } from "react";
 import { validRouteScope } from "@yuk/shared";
 import { configureApi, getConfig, getMe } from "./api.js";
+import { readCache, writeCache } from "./cache.js";
 import { loadToken, saveToken } from "./storage.js";
 
 // api.js shu yerdan tokenni oladi va 401 / 403 haqida aytadi. Modul darajasida — har qanday ekran so'rov yuborishidan oldin
@@ -34,6 +35,7 @@ export function SessionProvider({ children }) {
   const leave = useCallback(async () => {
     live.token = null;
     setState({ status: "out", me: null, error: null });
+    writeCache("me", null);
     await saveToken(null);
   }, []);
 
@@ -51,14 +53,25 @@ export function SessionProvider({ children }) {
       setState({ status: "out", me: null, error: null });
       return;
     }
+    // Tezlik: oxirgi «me» keshda bo'lsa — ilova serverni kutmasdan darhol ochiladi, server javobi kelgach yangilanadi.
+    // Server «401/blok» desa — onAuthLost/onBlocked baribir chiqaradi
+    const cached = readCache("me");
+    if (cached?.chatId) setState({ status: "in", me: cached, error: null });
     try {
       setState({ status: "in", me: await getMe(), error: null });
     } catch (error) {
       // 401 — onAuthLost allaqachon «out» qildi; 403 — onBlocked «blocked» qildi
       if (error.code === "auth" || error.code === "blocked") return;
+      // Aloqa yo'q, lekin kesh bor — ilova keshdagi bilan ishlayveradi (keyingi so'rovlar o'zi qayta urinadi)
+      if (cached?.chatId) return;
       setState({ status: "offline", me: null, error: error.message });
     }
   }, []);
+
+  // Har yangi «me» — keshga (keyingi ochilish uchun)
+  useEffect(() => {
+    if (state.status === "in" && state.me) writeCache("me", state.me);
+  }, [state.status, state.me]);
 
   // «Qayta urinish» (aloqa yo'q ekranida)
   const connect = useCallback(() => {
