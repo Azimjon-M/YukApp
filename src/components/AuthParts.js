@@ -1,7 +1,7 @@
-// Kirish (login.js) va Ro'yxatdan o'tish (royxat.js) sahifalarining umumiy qismlari (Azimjon, 2026-11-26):
+// Kirish sahifasi (login.js) qismlari (Azimjon, 2026-11-26):
 // tepadagi logo + qisqa ma'lumot, «Bot orqali» kirish oqimi (src/botLogin.js) va uni kutish qutisi, pastdagi havola.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Image, Linking, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { AppState, Image, Linking, Modal, StyleSheet, Text, View } from "react-native";
 import { ApiError, pollBotLogin, replaceDevice, startBotLogin } from "../api.js";
 import { createBotLogin } from "../botLogin.js";
 import { useSession } from "../session.js";
@@ -151,17 +151,6 @@ export function BotWait({ bot, botUsername }) {
   );
 }
 
-// Forma ostidagi havola: «Hisobingiz yo'qmi? Ro'yxatdan o'tish»
-export function AuthLink({ question, action, onPress }) {
-  return (
-    <Pressable role="link" onPress={onPress} style={styles.link} hitSlop={8}>
-      <Text style={styles.linkText}>
-        {question} <Text style={styles.linkAction}>{action}</Text>
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = themed(() =>
   StyleSheet.create({
   brand: { alignItems: "center", gap: space.sm },
@@ -172,9 +161,6 @@ const styles = themed(() =>
   boxTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
   text: { fontSize: 15, lineHeight: 23, color: colors.text },
   bold: { fontWeight: "700" },
-  link: { alignSelf: "center", paddingVertical: space.sm },
-  linkText: { fontSize: 15, color: colors.hint, textAlign: "center" },
-  linkAction: { color: colors.accent, fontWeight: "700" },
   error: { fontSize: 14, color: colors.error },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: space.lg },
   sheet: { gap: space.md },

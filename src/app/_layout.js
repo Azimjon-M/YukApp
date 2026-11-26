@@ -3,7 +3,7 @@
 // Qaysi ekran ochiq bo'lishi sessiya holatiga bog'liq (Stack.Protected: guard false bo'lsa ekran yo'q, ilova birinchi
 // ochiq ekranga o'tadi):
 //   loading / blocked / offline → holat.js  (kutish, «Uzr...», «Aloqa yo'q»)
-//   out                         → login.js  (Kirish) · royxat.js (Ro'yxatdan o'tish)
+//   out                         → login.js  (Kirish: raqam/username yoki bot orqali)
 //   in                          → (app)     (☰ yon menyu: Yuklar · E'lon berish · Sozlamalar · Dastur haqida), yonalish.js
 //   Ilovada rol yo'q (2026-11-25): session.js kirgan foydalanuvchini jimgina haydovchi qiladi, rol.js ekrani ishlatilmaydi
 //
@@ -71,7 +71,6 @@ function RootStack() {
       </Stack.Protected>
       <Stack.Protected guard={status === "out"}>
         <Stack.Screen name="login" options={{ headerShown: false, animation: "fade" }} />
-        <Stack.Screen name="royxat" options={{ headerShown: false, animation: "fade" }} />
       </Stack.Protected>
       <Stack.Protected guard={status === "loading" || status === "blocked" || status === "offline"}>
         <Stack.Screen name="holat" options={{ headerShown: false }} />

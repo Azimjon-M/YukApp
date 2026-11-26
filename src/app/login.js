@@ -1,14 +1,13 @@
 // «Kod bilan kirish» (2026-11-24): telefon raqami yoki @username → bot Telegram'ga kod yuboradi → kod ilovaga yoziladi.
 // Qadamlar mantig'i — src/codeLogin.js. Ekran (Azimjon, 2026-11-26): tepada logo va qisqa ma'lumot; «Kirish» qutisida —
 // raqam/username va «Bot orqali kirish» (src/botLogin.js). Botdan ro'yxatdan o'tmagan yoki botni o'chirgan odam kod ola
-// olmaydi — shunda bildirishnoma chiqadi va «Bot orqali kirish» ga ishora qiladi. Pastda — «Ro'yxatdan o'tish» (royxat.js).
+// olmaydi — shunda bildirishnoma chiqadi va «Bot orqali kirish» ga ishora qiladi. Alohida «Ro'yxatdan o'tish» yo'q (2026-11-26: «chopvorishimiz kerak») — yangi odam ham «Bot orqali kirish» bilan kiradi.
 import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { requestLoginCode, verifyLoginCode } from "../api.js";
 import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
-import { AuthLink, BotWait, Brand, useBotLogin, useDeviceGate } from "../components/AuthParts.js";
+import { BotWait, Brand, useBotLogin, useDeviceGate } from "../components/AuthParts.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
@@ -28,7 +27,6 @@ const clock = (ms) => {
 
 export default function LoginScreen() {
   const { signIn, botUsername, error: reason } = useSession();
-  const router = useRouter();
   const { gate, picker } = useDeviceGate();
   const bot = useBotLogin(gate);
   const [state, setState] = useState(null);
@@ -171,9 +169,6 @@ export default function LoginScreen() {
           </Card>
         )}
 
-        {!codeStep && bot.state.step !== "waiting" ? (
-          <AuthLink question="Hisobingiz yo'qmi?" action="Ro'yxatdan o'tish" onPress={() => router.replace("/royxat")} />
-        ) : null}
       </ScrollView>
       {picker}
     </SafeAreaView>
