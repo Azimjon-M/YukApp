@@ -1,28 +1,42 @@
-// Sozlamalar → «👤 Hisob sozlamalari»: kim kirgan, obuna, telefon; rolni almashtirish, hisobdan chiqish, o'chirish.
-import { Alert, RefreshControl, ScrollView, StyleSheet, Text } from "react-native";
+// Sozlamalar → «👤 Hisob sozlamalari»: kim kirgan, obuna, telefon; qurilmalar (ko'pi bilan 2 ta), hisobdan chiqish, o'chirish.
+import { useCallback, useEffect, useState } from "react";
+import { Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import Constants from "expo-constants";
 import { PLANS, formatContactPhone } from "@yuk/shared";
-import { API_URL, PROD_API_URL, deleteMe, signOut } from "../../../api.js";
+import { API_URL, PROD_API_URL, deleteMe, getDevices, removeDevice, signOut } from "../../../api.js";
+import { deviceWhen } from "../../../components/AuthParts.js";
 import { Row, Section, settingsStyles, usePullRefresh, useRunner } from "../../../components/settingsUi.js";
 import { useSession } from "../../../session.js";
-import { colors, themed } from "../../../theme.js";
+import { colors, space, themed } from "../../../theme.js";
 import { Button, Hint } from "../../../ui.js";
 
 export default function AccountSettingsScreen() {
   const { me, botUsername, refreshMe, leave } = useSession();
   const { busy, run } = useRunner();
-  const { refreshing, onRefresh } = usePullRefresh(refreshMe);
+  const [devices, setDevices] = useState(null); // { max, devices } | null
+  const loadDevices = useCallback(() => getDevices().then(setDevices, () => {}), []);
+  useEffect(() => {
+    loadDevices();
+  }, [loadDevices]);
+  const { refreshing, onRefresh } = usePullRefresh(async () => {
+    await Promise.all([refreshMe(), loadDevices()]);
+  });
 
-  // Ikki xil chiqish: faqat shu telefondan (bot ishlashda davom etadi) yoki butunlay (bot ham yubormaydi — Mini App'dagi
-  // «🚪 Chiqish» bilan bir xil, qayta kirib rol tanlasa sozlamalari tiklanadi)
+  // Ilovadan chiqish — faqat shu qurilma (server uni ro'yxatdan chiqaradi, joy bo'shaydi). Botga tegmaydi
+  // (Azimjon, 2026-11-26: «bot masalalari ilovaga aralashmasin»)
   const askSignOut = () =>
-    Alert.alert("Hisobdan chiqasizmi?", "«Faqat ilovadan» — bot yuklarni yuborishda davom etadi.\n«Butunlay» — bot ham yubormaydi.", [
+    Alert.alert("Hisobdan chiqasizmi?", "Faqat shu qurilmadan chiqasiz. Bot ishlashda davom etadi.", [
       { text: "Bekor qilish", style: "cancel" },
-      { text: "Butunlay", style: "destructive", onPress: () => run("signout", async () => {
-        await signOut();
+      { text: "Chiqish", style: "destructive", onPress: () => run("signout", async () => {
+        await signOut().catch(() => {});
         await leave();
       }) },
-      { text: "Faqat ilovadan", onPress: () => leave() },
+    ]);
+
+  const askRemove = (device) =>
+    Alert.alert("Qurilmani chiqarasizmi?", `«${device.name}» dagi ilova hisobdan chiqadi.`, [
+      { text: "Bekor qilish", style: "cancel" },
+      { text: "Chiqarish", style: "destructive", onPress: () => run(`device:${device.id}`, async () => setDevices(await removeDevice(device.id))) },
     ]);
 
   const askDelete = () =>
@@ -52,6 +66,35 @@ export default function AccountSettingsScreen() {
         <Row icon="📱" label="Telefon" value={me.phone ? formatContactPhone(me.phone) : "ulashilmagan (botda /raqam)"} />
       </Section>
 
+      <Section title={`📱 Qurilmalar (ko'pi bilan ${devices?.max ?? 2} ta)`}>
+        {devices?.devices?.length ? (
+          devices.devices.map((device) => (
+            <View key={device.id} style={styles.device}>
+              <View style={styles.deviceInfo}>
+                <Text style={settingsStyles.rowText}>
+                  {device.name}
+                  {device.current ? " · shu qurilma" : ""}
+                </Text>
+                <Hint>Oxirgi marta: {deviceWhen(device.seenAt)}</Hint>
+              </View>
+              {!device.current ? (
+                <Button
+                  title="Chiqarish"
+                  kind="secondary"
+                  style={styles.deviceButton}
+                  busy={busy === `device:${device.id}`}
+                  disabled={busy != null}
+                  onPress={() => askRemove(device)}
+                />
+              ) : null}
+            </View>
+          ))
+        ) : (
+          <Hint>{devices ? "Ro'yxat bo'sh." : "Yuklanmoqda…"}</Hint>
+        )}
+        <Hint>Bir hisob ko'pi bilan {devices?.max ?? 2} ta qurilmada ochiladi. Yana kirilsa — bittasini chiqarish so'raladi.</Hint>
+      </Section>
+
       <Section title="⚙️ Boshqa">
         <Button title="🚪 Hisobdan chiqish" kind="secondary" onPress={askSignOut} busy={busy === "signout"} disabled={busy != null} />
         <Button title="🗑 Hisobni o'chirish" kind="danger" onPress={askDelete} busy={busy === "delete"} disabled={busy != null} />
@@ -68,5 +111,8 @@ export default function AccountSettingsScreen() {
 const styles = themed(() =>
   StyleSheet.create({
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
+  device: { flexDirection: "row", alignItems: "center", gap: space.md },
+  deviceInfo: { flex: 1, gap: 2 },
+  deviceButton: { paddingHorizontal: space.md },
   }),
 );

@@ -33,6 +33,7 @@ const settings = {
   onAuthLost: () => {},
   onBlocked: () => {},
   appVersion: null, // o'rnatilgan versionCode — har so'rovda X-App-Version (appUpdate.js, majburiy yangilash)
+  deviceName: null, // «Galaxy A52» — X-Device-Name: server qurilmalar ro'yxatida ko'rsatadi (ko'pi bilan 2 ta qurilma)
   onUpdate: () => {}, // server 426 «update»: ilova eski
   fetch: (...args) => globalThis.fetch(...args),
   sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -72,6 +73,7 @@ async function requestOnce(method, path, { body, token = settings.getToken(), ti
   const headers = { accept: "application/json" };
   if (token) headers.authorization = `Bearer ${token}`;
   if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
+  if (settings.deviceName) headers["x-device-name"] = encodeURIComponent(settings.deviceName);
   if (body !== undefined) headers["content-type"] = "application/json";
 
   // AbortController — javob 20 s da kelmasa so'rovni to'xtatadi
@@ -104,7 +106,7 @@ async function requestOnce(method, path, { body, token = settings.getToken(), ti
   if (response.status === 426 && json?.code === "update") settings.onUpdate();
   // Token bilan yuborilgan so'rovga 401 — token eskirgan yoki hisob o'chirilgan. Tokensiz so'rovning 401 i (masalan,
   // kirish) — oddiy xato
-  if (response.status === 401 && token) settings.onAuthLost();
+  if (response.status === 401 && token) settings.onAuthLost(json?.error ?? null);
   if (json?.error) throw new ApiError(json.error, { status: response.status, code: json.code ?? null, field: json.field ?? null, data: json });
   // JSON emas — server ishlamayapti (nginx xato sahifasi, Cloudflare)
   throw new ApiError("Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status: response.status, code: "offline" });
@@ -137,6 +139,14 @@ export const verifyLoginCode = (requestId, code) =>
 export const startBotLogin = () => request("POST", "/pub/auth/app", { token: null, retry: false });
 export const pollBotLogin = (code) => request("GET", `/pub/auth/app/${encodeURIComponent(code)}`, { token: null, retry: false });
 
+// Qurilmalar (ko'pi bilan 2 ta). Kirishda 409 devices { ticket, devices } — bittasini chiqarib, shu qurilmada kirish:
+// → { token, me }
+export const replaceDevice = (ticket, deviceId) =>
+  request("POST", "/pub/auth/devices/replace", { body: { ticket, deviceId }, token: null, retry: false });
+// → { max, devices: [{ id, name, createdAt, seenAt, current }] }
+export const getDevices = () => request("GET", "/pub/me/devices");
+export const removeDevice = (id) => request("DELETE", `/pub/me/devices/${encodeURIComponent(id)}`);
+
 export const getMe = () => request("GET", "/pub/me");
 // Pauza ikkita, bir-biridan alohida (Azimjon, 2026-11-25: «Ajrat!»): setActive — bot Telegram'ga yuboradimi;
 // setAppActive — ilova lentasi va telefon bildirishnomalari (pastdagi «⏸ Pauza» tugmasi)
@@ -167,6 +177,7 @@ function authHeaders() {
   const token = settings.getToken();
   if (token) headers.authorization = `Bearer ${token}`;
   if (settings.appVersion) headers["x-app-version"] = String(settings.appVersion);
+  if (settings.deviceName) headers["x-device-name"] = encodeURIComponent(settings.deviceName);
   return headers;
 }
 export function voiceUpload(durationMs) {

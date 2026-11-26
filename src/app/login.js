@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { requestLoginCode, verifyLoginCode } from "../api.js";
 import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
-import { AuthLink, BotWait, Brand, useBotLogin } from "../components/AuthParts.js";
+import { AuthLink, BotWait, Brand, useBotLogin, useDeviceGate } from "../components/AuthParts.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
@@ -27,9 +27,10 @@ const clock = (ms) => {
 };
 
 export default function LoginScreen() {
-  const { signIn, botUsername } = useSession();
+  const { signIn, botUsername, error: reason } = useSession();
   const router = useRouter();
-  const bot = useBotLogin();
+  const { gate, picker } = useDeviceGate();
+  const bot = useBotLogin(gate);
   const [state, setState] = useState(null);
   const [login, setLogin] = useState("");
   const [code, setCode] = useState("");
@@ -39,13 +40,13 @@ export default function LoginScreen() {
   useEffect(() => {
     const machine = createCodeLogin({
       requestCode: requestLoginCode,
-      verifyCode: verifyLoginCode,
+      verifyCode: gate(verifyLoginCode),
       onChange: setState,
       onDone: (answer) => signIn(answer),
     });
     flow.current = machine;
     return () => machine.dispose();
-  }, [signIn]);
+  }, [signIn, gate]);
 
   const step = state?.step ?? "enter";
   const codeStep = step === "code" || step === "verifying" || step === "done";
@@ -82,6 +83,11 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Brand />
+        {reason && !codeStep ? (
+          <View style={styles.notice} role="alert">
+            <Text style={styles.text}>⚠️ {reason}</Text>
+          </View>
+        ) : null}
 
         {bot.state.step === "waiting" || bot.state.step === "done" ? (
           <BotWait bot={bot} botUsername={botUsername} />
@@ -169,6 +175,7 @@ export default function LoginScreen() {
           <AuthLink question="Hisobingiz yo'qmi?" action="Ro'yxatdan o'tish" onPress={() => router.replace("/royxat")} />
         ) : null}
       </ScrollView>
+      {picker}
     </SafeAreaView>
   );
 }

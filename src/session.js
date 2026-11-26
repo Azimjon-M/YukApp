@@ -16,13 +16,20 @@ import { loadToken, saveToken } from "./storage.js";
 
 // api.js shu yerdan tokenni oladi va 401 / 403 haqida aytadi. Modul darajasida — har qanday ekran so'rov yuborishidan oldin
 const live = { token: null, onAuthLost: () => {}, onBlocked: () => {} };
+// Qurilma nomi — Sozlamalar → Hisob → «📱 Qurilmalar» da ko'rinadi
+const deviceName = () => {
+  const c = Platform.constants ?? {};
+  const model = [c.Manufacturer && c.Manufacturer !== c.Model ? c.Manufacturer : null, c.Model].filter(Boolean).join(" ");
+  return (Constants.deviceName || model || "").trim().slice(0, 60) || null;
+};
 configureApi({
   getToken: () => live.token,
-  onAuthLost: () => live.onAuthLost(),
+  onAuthLost: (message) => live.onAuthLost(message),
   onBlocked: (message) => live.onBlocked(message),
   // o'rnatilgan ilova versiyasi (app.json android.versionCode, yig'ishda kodga yoziladi); web'da yo'q — tekshirilmaydi
   appVersion: Platform.OS === "android" ? Number(Constants.expoConfig?.android?.versionCode) || null : null,
   onUpdate: markStale,
+  deviceName: deviceName(),
 });
 
 const SessionContext = createContext(null);
@@ -38,15 +45,16 @@ export function SessionProvider({ children }) {
   const [config, setConfig] = useState(null);
 
   // Token o'chirib, kirish ekraniga (hisobdan chiqildi, o'chirildi yoki token eskirdi)
-  const leave = useCallback(async () => {
+  // reason — kirish ekranida ko'rinadigan sabab (masalan, «boshqa qurilmadan kirildi — bu qurilma chiqarildi»)
+  const leave = useCallback(async (reason = null) => {
     live.token = null;
-    setState({ status: "out", me: null, error: null });
+    setState({ status: "out", me: null, error: typeof reason === "string" ? reason : null });
     writeCache("me", null);
     await saveToken(null);
   }, []);
 
   useEffect(() => {
-    live.onAuthLost = () => void leave();
+    live.onAuthLost = (message) => void leave(message);
     // Token o'chirilmaydi: blokdan chiqarilsa, keyingi ochilishda o'zi kiradi (Mini App'dagidek)
     live.onBlocked = (message) => setState({ status: "blocked", me: null, error: message ?? null });
   }, [leave]);

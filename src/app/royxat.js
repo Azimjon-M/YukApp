@@ -4,7 +4,7 @@
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { AuthLink, BotWait, Brand, useBotLogin } from "../components/AuthParts.js";
+import { AuthLink, BotWait, Brand, useBotLogin, useDeviceGate } from "../components/AuthParts.js";
 import { useSession } from "../session.js";
 import { colors, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
@@ -18,7 +18,8 @@ const STEPS = [
 export default function RegisterScreen() {
   const { botUsername } = useSession();
   const router = useRouter();
-  const bot = useBotLogin();
+  const devices = useDeviceGate();
+  const bot = useBotLogin(devices.gate);
   const waiting = bot.state.step === "waiting" || bot.state.step === "done";
 
   return (
@@ -43,6 +44,7 @@ export default function RegisterScreen() {
         )}
         {!waiting ? <AuthLink question="Hisobingiz bormi?" action="Kirish" onPress={() => router.replace("/login")} /> : null}
       </ScrollView>
+      {devices.picker}
     </SafeAreaView>
   );
 }
