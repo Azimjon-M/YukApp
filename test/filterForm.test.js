@@ -1,11 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { REGION_IDS, TRUCK_FILTER_IDS } from "@yuk/shared";
 import {
+  PICK_ONE,
   filterChanged,
+  filterErrors,
   filterFromProfile,
   profileFromFilter,
   setMode,
+  toggleAllRegions,
   toggleAllSources,
+  toggleAllTrucks,
   toggleRegion,
   toggleSource,
   toggleTruck,
@@ -13,6 +18,12 @@ import {
 
 test("filterFromProfile: profil yo'q — hamma guruhlar, filtrsiz", () => {
   assert.deepEqual(filterFromProfile(null), { mode: "tezkor", sources: [], regions: [], trucks: [] });
+});
+
+test("filterFromProfile: saqlangan profilda bo'sh ro'yxat — hammasi belgilangan", () => {
+  const form = filterFromProfile({ feed: { mode: "tezkor", sources: [] } });
+  assert.deepEqual(form.trucks, TRUCK_FILTER_IDS);
+  assert.deepEqual(form.regions, REGION_IDS);
 });
 
 test("filterFromProfile: guruhlarim + filtrlar", () => {
@@ -41,16 +52,35 @@ test("toggleAllSources: hammasi tanlanadi, keyin olib tashlanadi", () => {
 });
 
 test("profileFromFilter: feed yoziladi, qolgan profil saqlanadi", () => {
-  const old = { vehicle: null, domestic: true, international: false, fromAreas: ["x"], feed: { mode: "tezkor", sources: [] } };
-  const form = toggleRegion(toggleTruck(filterFromProfile(old), "labo"), "fargona");
+  const old = { vehicle: null, domestic: true, international: false, fromAreas: ["x"], feed: { mode: "tezkor", sources: [], trucks: ["fura", "labo"], regions: ["andijon", "fargona"] } };
+  const form = toggleRegion(toggleTruck(filterFromProfile(old), "fura"), "andijon");
   const { profile, note } = profileFromFilter(form, old);
   assert.equal(note, null);
   assert.deepEqual(profile.feed, { mode: "tezkor", sources: [], regions: ["fargona"], trucks: ["labo"] });
   assert.deepEqual(profile.fromAreas, ["x"]);
 });
 
+test("validatsiya: mashina va qayerdan — kamida 1 ta", () => {
+  const empty = filterFromProfile(null);
+  assert.deepEqual(filterErrors(empty), { trucks: PICK_ONE, regions: PICK_ONE });
+  const result = profileFromFilter(toggleTruck(empty, "fura"), null);
+  assert.equal(result.error, PICK_ONE);
+  assert.deepEqual(result.errors, { regions: PICK_ONE });
+  assert.equal(result.profile, undefined);
+});
+
+test("«Hammasi»: hammasi belgilanadi/olinadi, serverga bo'sh ro'yxat (= hammasi) boradi", () => {
+  let form = toggleAllRegions(toggleAllTrucks(filterFromProfile(null)));
+  assert.deepEqual(form.trucks, TRUCK_FILTER_IDS);
+  const { profile } = profileFromFilter(form, null);
+  assert.equal(profile.feed.trucks, undefined);
+  assert.equal(profile.feed.regions, undefined);
+  form = toggleAllTrucks(form);
+  assert.deepEqual(form.trucks, []);
+});
+
 test("profileFromFilter: tanlangan guruhlarsiz — hamma guruhlar (bot qoidasi)", () => {
-  const form = setMode(filterFromProfile(null), "guruhlarim");
+  const form = setMode(toggleAllRegions(toggleAllTrucks(filterFromProfile(null))), "guruhlarim");
   const { profile, note } = profileFromFilter(form, null);
   assert.equal(profile.feed.mode, "tezkor");
   assert.ok(note);
