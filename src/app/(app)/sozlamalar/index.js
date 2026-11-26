@@ -20,6 +20,9 @@ export default function AdSettingsScreen() {
   const driver = role === "haydovchi";
   const openBot = () => Linking.openURL(`https://t.me/${botUsername}`).catch(() => {});
 
+  // Bot — alohida dunyo (Azimjon, 2026-11-26: «bot masalalari ilovaga aralashmasin»): server botning haqiqiy rolini va
+  // yuborishini me.bot da beradi; ilova botning rolini o'zgartirmaydi, faqat pauzasini (bot o'zi sozlangan bo'lsa)
+  const bot = me.bot ?? { role: me.role, active: me.active };
   const toggleActive = (value) => run("active", async () => setMe(await setActive(value)));
   const toggleApp = (value) => run("app", async () => setMe(await setAppActive(value)));
   const appActive = appOn(me);
@@ -35,24 +38,31 @@ export default function AdSettingsScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.accent]} />}
     >
       <Section title="🔔 E'lonlar kelishi">
-        <View style={styles.switchRow}>
-          <Text style={settingsStyles.rowText}>
-            {me.active ? "🤖 Botda faol — mos e'lonlar Telegram'ga keladi" : "⏸ Bot pauzada — Telegram'ga yubormaydi"}
-          </Text>
-          <Switch
-            value={Boolean(me.active)}
-            disabled={!canToggle || busy === "active"}
-            onValueChange={toggleActive}
-            trackColor={{ true: colors.accent }}
-          />
-        </View>
+        {bot.role ? (
+          <View style={styles.switchRow}>
+            <Text style={settingsStyles.rowText}>
+              {bot.active
+                ? bot.role === "haydovchi"
+                  ? "🤖 Botda faol — mos e'lonlar Telegram'ga keladi"
+                  : "🤖 Botda faol (yuk beruvchi — bo'sh mashinalar)"
+                : "⏸ Bot pauzada — Telegram'ga yubormaydi"}
+            </Text>
+            <Switch value={Boolean(bot.active)} disabled={busy === "active"} onValueChange={toggleActive} trackColor={{ true: colors.accent }} />
+          </View>
+        ) : (
+          <View style={styles.botOff}>
+            <Text style={settingsStyles.rowText}>🤖 Botda ro'yxatdan o'tmagansiz — Telegram'ga yuk kelmaydi.</Text>
+            <Hint>Botga ham kelsin desangiz — botda haydovchini tanlang. Filtr shu ilovadagi bilan bir xil bo'ladi.</Hint>
+            <Button title="✈️ Botni ochish" kind="secondary" onPress={openBot} />
+          </View>
+        )}
         <View style={styles.switchRow}>
           <Text style={settingsStyles.rowText}>
             {appActive ? "📱 Ilovada faol — lenta va bildirishnomalar" : "⏸ Ilova pauzada — lenta va bildirishnoma yo'q"}
           </Text>
           <Switch value={appActive} disabled={!canToggle || busy === "app"} onValueChange={toggleApp} trackColor={{ true: colors.accent }} />
         </View>
-        <Hint>Ikkalasi alohida: botni to'xtatsangiz ilova ishlayveradi va aksincha.</Hint>
+        <Hint>Ikkalasi alohida: botni to'xtatsangiz ilova ishlayveradi va aksincha. Filtr esa umumiy.</Hint>
         {!canToggle ? <Hint>Yoqish uchun avval «🎛 Filtr» ni saqlang.</Hint> : null}
       </Section>
 
@@ -127,5 +137,6 @@ function PushSection() {
 const styles = themed(() =>
   StyleSheet.create({
   switchRow: { flexDirection: "row", alignItems: "center", gap: space.md },
+  botOff: { gap: space.sm },
   }),
 );

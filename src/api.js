@@ -138,7 +138,6 @@ export const startBotLogin = () => request("POST", "/pub/auth/app", { token: nul
 export const pollBotLogin = (code) => request("GET", `/pub/auth/app/${encodeURIComponent(code)}`, { token: null, retry: false });
 
 export const getMe = () => request("GET", "/pub/me");
-export const setRole = (role) => request("PUT", "/pub/me/role", { body: { role } });
 // Pauza ikkita, bir-biridan alohida (Azimjon, 2026-11-25: «Ajrat!»): setActive — bot Telegram'ga yuboradimi;
 // setAppActive — ilova lentasi va telefon bildirishnomalari (pastdagi «⏸ Pauza» tugmasi)
 export const setActive = (active) => request("PATCH", "/pub/me", { body: { active } });
