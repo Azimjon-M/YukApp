@@ -145,7 +145,7 @@ export default function LoginScreen() {
                 <Text style={styles.noticeTitle}>⚠️ Kod bilan kirib bo'lmadi</Text>
                 <Text style={styles.text}>{PROBLEM_TEXT[problem]}</Text>
                 <Text style={styles.text}>
-                  👇 Pastdagi <Text style={styles.bold}>«Bot orqali kirish»</Text> ni bosing: bot ochiladi, «Start» → «✅ Ha, kiraman» — va
+                  👇 Pastdagi <Text style={styles.bold}>«Bot orqali kirish»</Text> ni bosing: bot ochiladi, «Start» → «✅ Ha, bog'layman» — va
                   ilovaga kirasiz.
                 </Text>
               </View>

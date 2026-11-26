@@ -1,6 +1,6 @@
 // «Ro'yxatdan o'tish» (Azimjon, 2026-11-26: alohida sahifa; forma ostida «Kirish» havolasi).
 // Ro'yxatdan o'tish — botda: «Bot orqali ro'yxatdan o'tish» botni ochadi (t.me/<bot>?start=app_<kod>), odam «Start» va
-// «✅ Ha, kiraman» ni bosadi — hisob ochiladi va ilova o'zi kiradi (src/botLogin.js, Kirish sahifasidagi bilan bir oqim).
+// «✅ Ha, bog'layman» ni bosadi — hisob ochiladi va ilova o'zi kiradi (src/botLogin.js, Kirish sahifasidagi bilan bir oqim).
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -11,7 +11,7 @@ import { Button, Card, Hint } from "../ui.js";
 
 const STEPS = [
   "Pastdagi tugmani bosing — Telegram'da bot ochiladi.",
-  "Botda «Start» ni, keyin «✅ Ha, kiraman» ni bosing.",
+  "Botda «Start» ni, keyin «✅ Ha, bog'layman» ni bosing.",
   "Shu yerga qayting — hisobingiz ochilgan, ilova o'zi kiradi.",
 ];
 

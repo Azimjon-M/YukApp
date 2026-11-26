@@ -1,7 +1,7 @@
-// «Bot orqali kirish» (2026-11-26, Azimjon: botdan ro'yxatdan o'tmagan yoki botni o'chirgan odam raqam/username bilan
+// «Bot orqali kirish» (2026-11-26; botda «Akkauntingizni ilovaga bog'laysizmi?» → «✅ Ha, bog'layman», Azimjon: botdan ro'yxatdan o'tmagan yoki botni o'chirgan odam raqam/username bilan
 // kira olmaydi — «Bot orqali» ga ishora qil). Server oqimi — YukPlatform public.js /pub/auth/app:
 //   1) start()  → POST /pub/auth/app → { code, url, expiresIn, pollMs }
-//   2) ilova url ni (t.me/<bot>?start=app_<kod>) ochadi; botda «Start» → «✅ Ha, kiraman» (yangi odam ham shu yerda
+//   2) ilova url ni (t.me/<bot>?start=app_<kod>) ochadi; botda «Start» → «✅ Ha, bog'layman» (yangi odam ham shu yerda
 //      bot bilan tanishadi — ro'yxatdan o'tish ham shu)
 //   3) poll(code) har pollMs da: 202 { status: "pending" } | 200 { token, me } | 410 expired
 // Bu fayl React bilmaydi — test/botLogin.test.js oddiy Node'da sinaydi. Kod maxfiy: holatga ham, logga ham chiqmaydi.

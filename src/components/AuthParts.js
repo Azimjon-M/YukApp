@@ -52,7 +52,7 @@ export function BotWait({ bot, botUsername }) {
     <Card style={styles.box}>
       <Text style={styles.boxTitle}>Botda tasdiqlang</Text>
       <Text style={styles.text}>
-        <Text style={styles.bold}>@{botUsername}</Text> boti ochildi. U yerda «Start» ni, keyin «✅ Ha, kiraman» ni bosing va shu
+        <Text style={styles.bold}>@{botUsername}</Text> boti ochildi. U yerda «Start» ni, keyin «✅ Ha, bog'layman» ni bosing va shu
         yerga qayting — ilova o'zi kiradi.
       </Text>
       <Button title="Tasdiqlash kutilmoqda…" busy onPress={() => {}} />
