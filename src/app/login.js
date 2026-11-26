@@ -1,22 +1,23 @@
 // «Kod bilan kirish» (2026-11-24): telefon raqami yoki @username → bot Telegram'ga kod yuboradi → kod ilovaga yoziladi.
-// Qadamlar mantig'i — src/codeLogin.js. Ekran (Azimjon, 2026-11-26): tepada ilova logosi va qisqa ma'lumot, «Kirish» —
-// raqam yoki username, «Ro'yxatdan o'tish» — bitta «Bot orqali» tugmasi (botga o'tadi). Kanal/guruh haqida gap yo'q.
+// Qadamlar mantig'i — src/codeLogin.js. Ekran (Azimjon, 2026-11-26): tepada logo va qisqa ma'lumot; «Kirish» qutisida —
+// raqam/username va «Bot orqali kirish» (src/botLogin.js). Botdan ro'yxatdan o'tmagan yoki botni o'chirgan odam kod ola
+// olmaydi — shunda bildirishnoma chiqadi va «Bot orqali kirish» ga ishora qiladi. Pastda — «Ro'yxatdan o'tish» (royxat.js).
 import { useEffect, useRef, useState } from "react";
-import { Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { requestLoginCode, verifyLoginCode } from "../api.js";
 import { createCodeLogin, DEFAULT_DIGITS } from "../codeLogin.js";
+import { AuthLink, BotWait, Brand, useBotLogin } from "../components/AuthParts.js";
 import { useSession } from "../session.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button, Card, Hint } from "../ui.js";
 
-const LOGO = require("../../assets/icon.png");
-
-// Kirib bo'lmadi — nima qilish kerak (qisqa; qolganini bot o'zi aytadi)
+// Kod bilan kirib bo'lmadi — nega va nima qilish kerak (pastdagi «Bot orqali kirish» ga ishora)
 const PROBLEM_TEXT = {
-  not_found: "Bu raqam yoki username bizda yo'q. Avval bot orqali ro'yxatdan o'ting.",
-  not_member: "Ro'yxatdan o'tish tugallanmagan. Botni oching — u nima qilish kerakligini aytadi.",
-  bot_blocked: "Bot sizga yoza olmadi. Botni oching va «Start» ni bosing, keyin qayta urinib ko'ring.",
+  not_found: "Bu raqam yoki username bizda topilmadi — siz hali botdan ro'yxatdan o'tmagansiz.",
+  not_member: "Botdagi ro'yxatdan o'tish tugallanmagan.",
+  bot_blocked: "Siz botni to'xtatgansiz yoki o'chirgansiz — bot sizga kod yubora olmadi.",
 };
 
 // Soniyani «1:05» ko'rinishida
@@ -25,10 +26,10 @@ const clock = (ms) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
 
-const open = (url) => url && Linking.openURL(url).catch(() => {});
-
 export default function LoginScreen() {
   const { signIn, botUsername } = useSession();
+  const router = useRouter();
+  const bot = useBotLogin();
   const [state, setState] = useState(null);
   const [login, setLogin] = useState("");
   const [code, setCode] = useState("");
@@ -73,7 +74,6 @@ export default function LoginScreen() {
   };
   const expiresAt = state?.expiresAt;
 
-  const botUrl = `https://t.me/${botUsername}`;
   const digits = state?.digits ?? DEFAULT_DIGITS;
   const resendLeft = (state?.resendAt ?? 0) - now;
   const problem = state?.problem;
@@ -81,15 +81,11 @@ export default function LoginScreen() {
   return (
     <SafeAreaView style={styles.page}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <View style={styles.brand}>
-          <Image source={LOGO} style={styles.logo} accessibilityLabel="Yuk Ekspert" />
-          <Text style={styles.title}>Yuk Ekspert</Text>
-          <Text style={styles.lead}>
-            Guruhlardagi yuk e'lonlarini shu yerga, darhol yuboradi. Yuk egasi esa yukini to'g'ridan-to'g'ri haydovchiga beradi.
-          </Text>
-        </View>
+        <Brand />
 
-        {codeStep ? (
+        {bot.state.step === "waiting" || bot.state.step === "done" ? (
+          <BotWait bot={bot} botUsername={botUsername} />
+        ) : codeStep ? (
           <Card style={styles.box}>
             <Text style={styles.boxTitle}>Kodni yozing</Text>
             <Text style={styles.text}>
@@ -143,16 +139,34 @@ export default function LoginScreen() {
               onSubmitEditing={submit}
             />
             {state?.error ? <Text style={styles.error}>{state.error}</Text> : null}
-            <Button title="Kod olish" busy={step === "sending"} disabled={!login.trim()} onPress={submit} />
+            <Button title="Kod olish" kind={problem ? "secondary" : "primary"} busy={step === "sending"} disabled={!login.trim()} onPress={submit} />
+            {problem ? (
+              <View style={styles.notice} role="alert">
+                <Text style={styles.noticeTitle}>⚠️ Kod bilan kirib bo'lmadi</Text>
+                <Text style={styles.text}>{PROBLEM_TEXT[problem]}</Text>
+                <Text style={styles.text}>
+                  👇 Pastdagi <Text style={styles.bold}>«Bot orqali kirish»</Text> ni bosing: bot ochiladi, «Start» → «✅ Ha, kiraman» — va
+                  ilovaga kirasiz.
+                </Text>
+              </View>
+            ) : null}
+            <View style={styles.or}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>yoki</Text>
+              <View style={styles.orLine} />
+            </View>
+            <Button
+              title="✈️ Bot orqali kirish"
+              kind={problem ? "primary" : "secondary"}
+              busy={bot.state.step === "starting"}
+              onPress={bot.begin}
+            />
+            {bot.state.error ? <Text style={styles.error}>{bot.state.error}</Text> : null}
           </Card>
         )}
 
-        {!codeStep ? (
-          <Card style={[styles.box, problem && styles.alert]}>
-            <Text style={styles.boxTitle}>Ro'yxatdan o'tish</Text>
-            {problem ? <Text style={styles.text}>{PROBLEM_TEXT[problem]}</Text> : null}
-            <Button title="✈️ Bot orqali" onPress={() => open(botUrl)} />
-          </Card>
+        {!codeStep && bot.state.step !== "waiting" ? (
+          <AuthLink question="Hisobingiz yo'qmi?" action="Ro'yxatdan o'tish" onPress={() => router.replace("/royxat")} />
         ) : null}
       </ScrollView>
     </SafeAreaView>
@@ -163,15 +177,11 @@ const styles = themed(() =>
   StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
   content: { flexGrow: 1, padding: space.lg, paddingTop: space.xl, gap: space.lg },
-  brand: { alignItems: "center", gap: space.sm },
-  logo: { width: 88, height: 88, borderRadius: 22 },
-  title: { fontSize: 28, fontWeight: "800", color: colors.text },
-  lead: { fontSize: 15, lineHeight: 21, color: colors.hint, textAlign: "center" },
   box: { gap: space.md },
-  alert: { borderWidth: 1, borderColor: colors.accent },
   boxTitle: { fontSize: 18, fontWeight: "700", color: colors.text },
   text: { fontSize: 15, lineHeight: 23, color: colors.text },
   bold: { fontWeight: "700" },
+  error: { fontSize: 14, color: colors.error },
   input: {
     borderWidth: 1,
     borderColor: colors.line,
@@ -183,6 +193,10 @@ const styles = themed(() =>
     backgroundColor: colors.card,
   },
   codeInput: { fontSize: 26, letterSpacing: 10, textAlign: "center", fontWeight: "700" },
-  error: { fontSize: 14, color: colors.error },
+  notice: { gap: space.sm, padding: space.md, borderRadius: radius, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.bg },
+  noticeTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+  or: { flexDirection: "row", alignItems: "center", gap: space.sm },
+  orLine: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.line },
+  orText: { fontSize: 13, color: colors.hint },
   }),
 );

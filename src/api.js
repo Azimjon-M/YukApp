@@ -132,6 +132,11 @@ export const requestLoginCode = (login) => request("POST", "/pub/auth/code", { b
 export const verifyLoginCode = (requestId, code) =>
   request("POST", "/pub/auth/code/verify", { body: { requestId, code }, token: null, retry: false });
 
+// Bot orqali kirish (src/botLogin.js): → { code, url, tgUrl, expiresIn, pollMs }; so'rab turish → 202 { status: "pending" } |
+// { token, me } | 410 expired
+export const startBotLogin = () => request("POST", "/pub/auth/app", { token: null, retry: false });
+export const pollBotLogin = (code) => request("GET", `/pub/auth/app/${encodeURIComponent(code)}`, { token: null, retry: false });
+
 export const getMe = () => request("GET", "/pub/me");
 export const setRole = (role) => request("PUT", "/pub/me/role", { body: { role } });
 // Pauza ikkita, bir-biridan alohida (Azimjon, 2026-11-25: «Ajrat!»): setActive — bot Telegram'ga yuboradimi;
