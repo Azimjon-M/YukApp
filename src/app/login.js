@@ -16,7 +16,7 @@ import { Button, Card, Hint } from "../ui.js";
 // Kod bilan kirib bo'lmadi — nega va nima qilish kerak (pastdagi «Bot orqali kirish» ga ishora)
 const PROBLEM_TEXT = {
   not_found: "Bu raqam yoki username bizda topilmadi — siz hali botdan ro'yxatdan o'tmagansiz.",
-  not_member: "Botdagi ro'yxatdan o'tish tugallanmagan.",
+  not_member: "Siz kanal va guruhimizga a'zo emassiz — bot faqat a'zolarga xizmat qiladi. Bot ochilgach, a'zo bo'lib «✅ A'zo bo'ldim» ni bosing.",
   bot_blocked: "Siz botni to'xtatgansiz yoki o'chirgansiz — bot sizga kod yubora olmadi.",
 };
 
