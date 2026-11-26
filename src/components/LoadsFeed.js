@@ -12,6 +12,7 @@ import { ActivityIndicator, Animated, AppState, FlatList, Pressable, RefreshCont
 import { router, useFocusEffect } from "expo-router";
 import { feedLabel } from "@yuk/shared";
 import { appOn, getFeed, getTrucks } from "../api.js";
+import { JoinWall } from "./JoinWall.js";
 import { readCache, writeCache } from "../cache.js";
 import { useNewLoads } from "../newLoads.js";
 import { useSession } from "../session.js";
@@ -155,6 +156,7 @@ export function LoadsFeed() {
   // ko'rinadi, «↑» da soni), ekran o'zidan-o'zi eng yangisiga sakramaydi (Azimjon, 2026-11-25). Foydalanuvchi o'zi tepaga
   // chiqqanda yoki «↑» bilan eng tepaga o'tganda — odatdagi holat (tepada turganda yangisi o'zi ko'rinadi)
   const [hold, setHold] = useState(false);
+  const [blocked, setBlocked] = useState(null); // a'zo emas: [{ ref, title, url }] | null
   const holdRef = useRef(false);
   const dragged = useRef(false); // foydalanuvchi barmog'i bilan aylantirdimi (scrollToIndex emas)
   const lastY = useRef(0);
@@ -177,6 +179,14 @@ export function LoadsFeed() {
         const data = await k.fetch(mode === "silent" ? { retry: false } : undefined);
         if (id !== request.current) return;
         fails.current = 0;
+        // Majburiy kanal/guruhdan chiqqan — e'lonlar to'xtaydi, sababi va «a'zo bo'ling» (JoinWall)
+        if (data.member?.ok === false) {
+          setBlocked(data.member.missing ?? []);
+          itemsRef.current = [];
+          setState((s) => ({ ...s, items: [], fresh: new Set(), loading: false, refreshing: false, error: null }));
+          return;
+        }
+        setBlocked(null);
         // Ilova pauzasi boshqa telefonda o'zgargan bo'lsa — holat yangilanadi (server lentada active = ilova pauzasi)
         if (typeof data.active === "boolean" && data.active === paused) refreshMe().catch(() => {});
         // Pauzada server bo'sh ro'yxat beradi — oxirgi 10 daqiqalik e'lonlar ekranda qoladi (yangisi qo'shilmaydi)
@@ -392,6 +402,14 @@ export function LoadsFeed() {
       {error && items.length ? <Text style={styles.error}>⚠️ {error.message}</Text> : null}
     </View>
   );
+
+  if (blocked) {
+    return (
+      <View style={[styles.page, styles.pad]}>
+        <JoinWall missing={blocked} onJoined={() => load("full")} />
+      </View>
+    );
+  }
 
   if (noFilter) {
     return (

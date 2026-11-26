@@ -40,6 +40,7 @@ import { useSession } from "../session.js";
 import { toast } from "../toast.js";
 import { colors, radius, space, themed } from "../theme.js";
 import { Button } from "../ui.js";
+import { JoinOverlay } from "./JoinWall.js";
 
 const POLL_MS = 3_000; // yuborilgan yuk natijasini kutish
 const POLL_FOR_MS = 3 * 60_000;
@@ -138,8 +139,10 @@ export function LoadChat() {
     };
   }, []);
 
+  const [blocked, setBlocked] = useState(null); // majburiy kanal/guruhga a'zo emas: [{ ref, title, url }] | null
   const apply = useCallback((data) => {
     if (!alive.current || !data) return;
+    if (data.member) setBlocked(data.member.ok === false ? (data.member.missing ?? []) : null);
     if (data.intro) setIntro(data.intro);
     if (data.limit) setQuota({ used: data.used, limit: data.limit });
     if (data.messages?.length) {
@@ -197,6 +200,10 @@ export function LoadChat() {
       apply(data);
       return true;
     } catch (error) {
+      if (error.code === "not_member") {
+        if (alive.current) setBlocked(error.data?.missing ?? []);
+        return false;
+      }
       if (alive.current) setMessages((list) => [...list, { id: `e${++localId}`, from: "bot", text: `⚠️ ${error.message}`, at: Date.now(), local: true }]);
       return false;
     } finally {
@@ -502,6 +509,7 @@ export function LoadChat() {
           </View>
         )}
       </View>
+      {blocked ? <JoinOverlay missing={blocked} onJoined={() => { setBlocked(null); refresh(); }} /> : null}
     </KeyboardAvoidingView>
   );
 }

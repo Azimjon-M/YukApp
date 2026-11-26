@@ -147,6 +147,10 @@ export const replaceDevice = (ticket, deviceId) =>
 export const getDevices = () => request("GET", "/pub/me/devices");
 export const removeDevice = (id) => request("DELETE", `/pub/me/devices/${encodeURIComponent(id)}`);
 
+// Majburiy a'zolik (2026-11-26): lenta va E'lon berish javobida member: { ok, missing: [{ ref, title, type, url }] }.
+// «✅ A'zo bo'ldim» — Telegram'dan hozir tekshirish → { ok, missing }
+export const checkMembership = () => request("POST", "/pub/me/membership", { retry: false });
+
 export const getMe = () => request("GET", "/pub/me");
 // Pauza ikkita, bir-biridan alohida (Azimjon, 2026-11-25: «Ajrat!»): setActive — bot Telegram'ga yuboradimi;
 // setAppActive — ilova lentasi va telefon bildirishnomalari (pastdagi «⏸ Pauza» tugmasi)
@@ -200,7 +204,7 @@ export function readUpload({ status, body }) {
   if (json?.code === "blocked") settings.onBlocked(json.error);
   if (status === 401) settings.onAuthLost();
   if (status === 426 && json?.code === "update") settings.onUpdate();
-  throw new ApiError(json?.error ?? "Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status, code: json?.code ?? (json ? null : "offline") });
+  throw new ApiError(json?.error ?? "Server hozir ishlamayapti. Birozdan keyin qayta urinib ko'ring.", { status, code: json?.code ?? (json ? null : "offline"), data: json });
 }
 
 // view: mine | all; hours: 6 | 24 | 72; limit; offset; from; to → { view, hours, total, items: [{ id, load, post, createdAt }] }
