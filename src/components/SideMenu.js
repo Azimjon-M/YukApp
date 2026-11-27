@@ -72,7 +72,9 @@ function MenuPanel({ progress, close }) {
   const current = sectionOf(pathname);
   const shipper = me?.role === "yuk_beruvchi";
   // Rol o'rniga — obuna (ilovada rol yo'q, Azimjon 2026-11-25: «Haydovchini yo'qot! uni o'rniga Obuna»)
-  const pro = me?.plan === "pro";
+  // 2026-11-27: Free / ⭐ Pro / 💎 Max (@yuk/shared PLANS)
+  const plan = PLANS[me?.plan] ? me.plan : "free";
+  const pro = plan !== "free";
 
   const loads = { id: "asosiy", icon: shipper ? "🚚" : "📋", label: shipper ? "Bo'sh mashinalar" : "Yuklar", href: "/", badge: badgeText(count) };
   const post = { id: "elon", icon: "📝", label: "E'lon berish", href: "/elon" };
@@ -114,7 +116,7 @@ function MenuPanel({ progress, close }) {
           </Text>
           {me?.username ? <Text style={styles.username}>@{me.username}</Text> : null}
           <View style={[styles.badge, pro && styles.badgePro]}>
-            <Text style={styles.badgeText}>{pro ? "⭐ Pro obuna" : `🆓 Obuna: ${PLANS.free.name}`}</Text>
+            <Text style={styles.badgeText}>{pro ? `${PLANS[plan].icon} ${PLANS[plan].name} obuna` : `🆓 Obuna: ${PLANS.free.name}`}</Text>
           </View>
         </View>
 

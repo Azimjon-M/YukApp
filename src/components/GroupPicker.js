@@ -1,5 +1,7 @@
 // «📌 Qaysi guruhlardan?» — botdagi guruh tanlash ro'yxati (GET /pub/me/feed-sources): 🌐 ochiq va 🔒 yopiq guruhlar
-// alohida (yopig'i faqat Pro'ga ko'rinadi), eng faoli tepada, har birida oxirgi 24 soatdagi e'lonlar soni.
+// alohida (yopig'i: Pro'ga — o'ziniki, Max'ga — hammasi; server shunday beradi), eng faoli tepada, har birida oxirgi 24 soatdagi e'lonlar soni.
+// Avval qaysi ro'yxat (Azimjon, 2026-11-26): 🌍 Global — hamma guruhlar, 👤 Akkauntimdagi — o'zi ulagan Telegram akkaunti a'zo
+// bo'lgan guruh/kanallar (server own). Akkaunt ulanmagan bo'lsa — tanlovsiz, hammasi.
 // «☑️ Hammasini tanlash», qidiruv (kirill/lotin farqisiz — shared foldText), 20 tadan ko'rsatiladi («Yana ko'rsatish»).
 import { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, TextInput, View } from "react-native";
@@ -30,13 +32,15 @@ function groupOptions(list, chosen) {
         .join(" · "),
       search: foldText(`${s.title ?? ""} ${s.name}`),
       closed: Boolean(s.closed),
+      own: Boolean(s.own),
     }));
 }
 
-// form — filtr formasi (filterForm.js); onToggle(name), onToggleAll(names)
-export function GroupPicker({ form, onToggle, onToggleAll }) {
+// form — filtr formasi (filterForm.js); max — obuna bo'yicha nechta guruh (me.maxSources); onToggle(name), onToggleAll(names)
+export function GroupPicker({ form, max = null, onToggle, onToggleAll }) {
   const [state, setState] = useState({ list: [], loading: true, error: null, attempt: 0 });
   const [tab, setTab] = useState("open");
+  const [scope, setScope] = useState("all"); // all — 🌍 global | own — 👤 akkauntimdagi
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(PAGE);
 
@@ -51,7 +55,11 @@ export function GroupPicker({ form, onToggle, onToggleAll }) {
     };
   }, [state.attempt]);
 
-  const options = useMemo(() => groupOptions(state.list, form.sources), [state.list, form.sources]);
+  const everything = useMemo(() => groupOptions(state.list, form.sources), [state.list, form.sources]);
+  const ownCount = everything.filter((o) => o.own).length;
+  const where = ownCount ? scope : "all";
+  const options = where === "own" ? everything.filter((o) => o.own) : everything;
+  const pickedIn = (items) => items.filter((o) => hasSource(form, o.id)).length;
   const closedCount = options.filter((o) => o.closed).length;
   const current = tab === "closed" && closedCount ? "closed" : "open";
   const inTab = options.filter((o) => (current === "closed") === o.closed);
@@ -73,7 +81,23 @@ export function GroupPicker({ form, onToggle, onToggleAll }) {
 
   return (
     <View style={styles.gap}>
-      <Text style={styles.count}>Tanlangan: {form.sources.length} ta guruh</Text>
+      <Text style={styles.count}>Tanlangan: {form.sources.length}{max ? ` / ${max}` : ""} ta guruh</Text>
+      {ownCount > 0 ? (
+        <Segmented
+          options={[
+            { id: "all", label: `🌍 Global · ${everything.length}${pickedIn(everything) ? ` ✓${pickedIn(everything)}` : ""}` },
+            { id: "own", label: `👤 Akkauntimdagi · ${ownCount}${pickedIn(everything.filter((o) => o.own)) ? ` ✓${pickedIn(everything.filter((o) => o.own))}` : ""}` },
+          ]}
+          value={where}
+          onChange={(id) => {
+            setScope(id);
+            setTab("open");
+            setQ("");
+            setLimit(PAGE);
+          }}
+        />
+      ) : null}
+      {where === "own" ? <Hint>Siz ulagan Telegram akkauntingiz a'zo bo'lgan guruh va kanallar.</Hint> : null}
       {closedCount > 0 ? (
         <Segmented
           options={[

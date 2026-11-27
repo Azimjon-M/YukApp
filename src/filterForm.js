@@ -4,7 +4,7 @@
 //   «tanlamasam ham ishlamoqda… validatsiya kerak»), «✓ Hammasi» bilan hammasini birdan. Serverga hammasi tanlangani
 //   bo'sh ro'yxat bo'lib boradi (bo'sh = hammasi, joyi yozilmagan e'lonlar ham) — bot va eski profillar shu ma'noda.
 // Qoidalar @yuk/shared feed.js da (bot va server ham shu bilan tekshiradi).
-import { FEED_SOURCES_MAX, REGION_IDS, TRUCK_FILTER_IDS, choiceMode, emptyProfile, feedOf, sanitizeFeed } from "@yuk/shared";
+import { FEED_SOURCES_MAX, PLANS, sourcesLimitText, REGION_IDS, TRUCK_FILTER_IDS, choiceMode, emptyProfile, feedOf, sanitizeFeed } from "@yuk/shared";
 
 export const PICK_ONE = "Iltimos, kamida 1 ta tanlang";
 
@@ -45,19 +45,23 @@ export const setMode = (form, mode) => ({ ...form, mode });
 
 export const hasSource = (form, name) => form.sources.some((n) => sameKey(n, name));
 
-// Guruhni belgilash / olib tashlash → { form } yoki { error } (ko'pi bilan FEED_SOURCES_MAX ta)
-export function toggleSource(form, name) {
+// Obuna bo'yicha nechta guruh tanlash mumkin (2026-11-27: Free 30, Pro 100, Max 300 — @yuk/shared roles.js); noma'lum — eng kattasi
+export const sourcesMax = (plan) => PLANS[plan]?.maxSources ?? FEED_SOURCES_MAX;
+
+// Guruhni belgilash / olib tashlash → { form } yoki { error }. plan — me.plan (free | pro | max)
+export function toggleSource(form, name, plan = null) {
   if (hasSource(form, name)) return { form: { ...form, sources: form.sources.filter((n) => !sameKey(n, name)) } };
-  if (form.sources.length >= FEED_SOURCES_MAX) return { error: `Ko'pi bilan ${FEED_SOURCES_MAX} ta guruh tanlash mumkin` };
+  const max = sourcesMax(plan);
+  if (form.sources.length >= max) return { error: PLANS[plan] ? sourcesLimitText(plan) : `Ko'pi bilan ${max} ta guruh tanlash mumkin` };
   return { form: { ...form, sources: [...form.sources, name] } };
 }
 
 // «☑️ Hammasini tanlash» / «▫️ Hammasini olib tashlash»: names — ro'yxatdagi tanlasa bo'ladigan guruhlar
-export function toggleAllSources(form, names) {
+export function toggleAllSources(form, names, plan = null) {
   const all = names.length > 0 && names.every((name) => hasSource(form, name));
   if (all) return { ...form, sources: form.sources.filter((n) => !names.some((name) => sameKey(n, name))) };
   const extra = names.filter((name) => !hasSource(form, name));
-  return { ...form, sources: [...form.sources, ...extra].slice(0, FEED_SOURCES_MAX) };
+  return { ...form, sources: [...form.sources, ...extra].slice(0, sourcesMax(plan)) };
 }
 
 // Forma → serverga yuboriladigan profil: { profile, note? } yoki { error, errors } (errors — filterErrors).

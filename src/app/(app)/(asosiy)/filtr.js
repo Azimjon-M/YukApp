@@ -65,7 +65,7 @@ export default function FilterScreen() {
   const blockY = useRef({});
 
   const pickSource = (name) => {
-    const result = toggleSource(form, name);
+    const result = toggleSource(form, name, me.plan);
     if (result.error) toast(result.error);
     else setForm(result.form);
   };
@@ -122,7 +122,7 @@ export default function FilterScreen() {
 
         {form.mode === "guruhlarim" ? (
           <Block icon="📌" title="Guruhlar">
-            <GroupPicker form={form} onToggle={pickSource} onToggleAll={(names) => setForm(toggleAllSources(form, names))} />
+            <GroupPicker form={form} max={me.maxSources ?? null} onToggle={pickSource} onToggleAll={(names) => setForm(toggleAllSources(form, names, me.plan))} />
           </Block>
         ) : null}
 

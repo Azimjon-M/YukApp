@@ -92,3 +92,13 @@ test("filterChanged", () => {
   assert.equal(filterChanged({ ...form, trucks: ["isuzu", "fura"] }, profile), false);
   assert.equal(filterChanged(toggleTruck(form, "labo"), profile), true);
 });
+
+test("guruh limiti obunaga qarab (2026-11-27): Free 30, Pro 100; «hammasini tanlash» ham shu chegarada", async () => {
+  const { toggleSource, toggleAllSources, sourcesMax } = await import("../src/filterForm.js");
+  const names = Array.from({ length: 120 }, (_, i) => `@guruh_${i}_yuk`);
+  let form = { mode: "guruhlarim", sources: names.slice(0, 30), regions: [], trucks: [] };
+  assert.match(toggleSource(form, "@yana_guruh", "free").error, /Free obunada ko'pi bilan 30 ta/);
+  assert.ok(toggleSource(form, "@yana_guruh", "pro").form);
+  assert.equal(toggleAllSources({ ...form, sources: [] }, names, "pro").sources.length, 100);
+  assert.deepEqual([sourcesMax("free"), sourcesMax("max"), sourcesMax(undefined)], [30, 300, 300]);
+});
